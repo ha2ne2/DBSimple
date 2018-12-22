@@ -254,8 +254,9 @@ namespace Ha2ne2.DBSimple
                     {
                         SetLazyObjToBelongsTo(connectionString, modelList.AsEnumerable(),
                                               loadedBelongsToPropertyName, loadedBelongsToObj);
+
                         //SetLazyObjToHasMany(connectionString, modelList.AsEnumerable(),
-                        //                    loadedHasManyPropertyName, loadedChildren);
+                        //                    loadedHasManyPropertyName, loadedHasManyObj);
                     }
 
                     return modelList;
@@ -283,7 +284,7 @@ namespace Ha2ne2.DBSimple
             Dictionary<int,object> loadedHasManyObjDict
             )
         {
-            // 親のモデルが空の時はreturn
+            // モデルのリストが空の時はreturn
             if (models.IsEmpty())
                 return;
 
@@ -386,7 +387,7 @@ namespace Ha2ne2.DBSimple
             IEnumerable<object> loadedBelongsToObj
             )
         {
-            // 子のモデルが空の時はreturn
+            // モデルのリストが空の時はreturn
             if (models.IsEmpty())
                 return;
 
@@ -425,14 +426,14 @@ namespace Ha2ne2.DBSimple
                 else
                 {
                     //// SQL文を作る
-                    // SELECT * FROM parent_table WHERE parentPK IN (1,2,3) の 1,2,3の部分を作る
+                    // SELECT * FROM belongsToTable WHERE referenceKey IN (1,2,3) の 1,2,3の部分を作る
                     string foreignKeyList = models
-                        .Select(child => (int)getForeignKeyMethod.Invoke(child, null))
+                        .Select(model => (int)getForeignKeyMethod.Invoke(model, null))
                         .Distinct().OrderBy(i => i).JoinToString(", ");
 
                     string selectQuery = string.Format(
                         "SELECT * FROM [{0}] WHERE [{1}] IN ({2})",
-                        belongsToAttr.Type.Name,   // TODO BelongsToクラス名がテーブル名という前提
+                        belongsToAttr.Type.Name,               // TODO BelongsToのクラス名がテーブル名という前提
                         belongsToObjReferenceKeyPropertyName,  // TODO referenceKeyプロパティ名が参照先列名という前提
                         foreignKeyList);
 
@@ -443,10 +444,10 @@ namespace Ha2ne2.DBSimple
                         null, null,
                         belongsToAttr.InverseHasManyPropertyName, modelDict
                         )
-                        .ToDictionary(parent => (int)getBelongsToObjReferenceKeyMethod.Invoke(parent, null));
+                        .ToDictionary(belongsToObj => (int)getBelongsToObjReferenceKeyMethod.Invoke(belongsToObj, null));
                 }
 
-                //// 子のBelongsToプロパティに親をセットしていく
+                //// BelongsToプロパティにインスタンスをセットしていく
                 foreach (var model in models)
                 {
                     int foreignKey = (int)getForeignKeyMethod.Invoke(model, null);
@@ -472,14 +473,14 @@ namespace Ha2ne2.DBSimple
         /// 
         /// </summary>
         /// <param name="tx">SQLトランザクション</param>
-        /// <param name="parents">読み込み対象のモデル</param>
+        /// <param name="models">読み込み対象のモデル</param>
         /// <param name="loadedHasManyPropertyName">読み込み済みプロパティの名前</param>
-        /// <param name="loadedChildren">読み込み済みプロパティのモデル</param>
+        /// <param name="loadedHasManyObj">読み込み済みプロパティのモデル</param>
         //private static void SetLazyObjToHasMany(
         //    string connectionString,
-        //    IEnumerable<object> parents,
+        //    IEnumerable<object> models,
         //    string loadedHasManyPropertyName,
-        //    Dictionary<int, object> loadedChildren
+        //    Dictionary<int, object> loadedHasManyObj
         //    )
         //{
         //}
@@ -501,7 +502,7 @@ namespace Ha2ne2.DBSimple
             IEnumerable<object> loadedBelongsToObj
             )
         {
-            // 子のモデルが空の時はreturn
+            // モデルのリストが空の時はreturn
             if (models.IsEmpty())
                 return;
 
@@ -565,7 +566,7 @@ namespace Ha2ne2.DBSimple
                     foreach (var model in models)
                     {
                         //// SQL文を作る
-                        // SELECT * FROM parent_Table WHERE referenceKey = childFK
+                        // SELECT * FROM belongsToTable WHERE referenceKey = belongsToObjFK
                         int modelFK = (int)getForeignKeyMethod.Invoke(model, null);
                         string selectQuery = selectQueryBase + modelFK;
 
