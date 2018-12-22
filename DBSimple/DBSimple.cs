@@ -252,11 +252,11 @@ namespace Ha2ne2.DBSimple
                     }
                     else
                     {
-                        SetLazyObjToBelongsTo(connectionString, modelList.AsEnumerable(),
-                                              loadedBelongsToPropertyName, loadedBelongsToObj);
+                        SetLazyObjToBelongsToProp(connectionString, modelList.AsEnumerable(),
+                                                  loadedBelongsToPropertyName, loadedBelongsToObj);
 
-                        //SetLazyObjToHasMany(connectionString, modelList.AsEnumerable(),
-                        //                    loadedHasManyPropertyName, loadedHasManyObj);
+                        SetLazyObjToHasManyProp(connectionString, modelList.AsEnumerable(),
+                                                loadedHasManyPropertyName, loadedHasManyObj);
                     }
 
                     return modelList;
@@ -364,7 +364,7 @@ namespace Ha2ne2.DBSimple
                     int referenceKey = (int)getReferenceKeyMethod.Invoke(model, null);
                     setObjListToHasManyProp(model, hasManyLookup[referenceKey].ToList());
                 }
-            }              
+            }
         }
 
         /// <summary>
@@ -476,14 +476,104 @@ namespace Ha2ne2.DBSimple
         /// <param name="models">読み込み対象のモデル</param>
         /// <param name="loadedHasManyPropertyName">読み込み済みプロパティの名前</param>
         /// <param name="loadedHasManyObj">読み込み済みプロパティのモデル</param>
-        //private static void SetLazyObjToHasMany(
-        //    string connectionString,
-        //    IEnumerable<object> models,
-        //    string loadedHasManyPropertyName,
-        //    Dictionary<int, object> loadedHasManyObj
-        //    )
-        //{
-        //}
+        private static void SetLazyObjToHasManyProp(
+            string connectionString,
+            IEnumerable<object> models,
+            string loadedHasManyPropertyName,
+            Dictionary<int, object> loadedHasManyObjDict
+            )
+        {
+            // モデルのリストが空の時はreturn
+            if (models.IsEmpty())
+                return;
+
+            Type modelType = models.First().GetType();
+            List<HasManyAttribute> hasManyAttrList = PropertyUtil.GetHasManyAttrList(modelType);
+
+            // HasMany属性のついたプロパティが無い時はreturn
+            if (hasManyAttrList.IsEmpty())
+                return;
+
+            // モデルをプライマリーキーを集めて
+            // SELECT * FROM has_many_table WHERE has_many_FK IN (1,2,3) の 1,2,3の部分を作る
+            MethodInfo getPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(modelType);
+            string primaryKeyList = models
+                .Select(model => (int)getPrimaryKeyMethod.Invoke(model, null))
+                .Distinct().OrderBy(i => i).JoinToString(", ");
+
+            foreach (var hasManyAttr in hasManyAttrList)
+            {
+                #region 下準備
+
+                string referenceKeyPropName = hasManyAttr.InverseBelongsToAttribute.ReferenceKey;
+
+                MethodInfo setHasManyMethod = hasManyAttr.Property.GetSetMethod();
+                MethodInfo getHasManyObjForeginKeyMethod = hasManyAttr.Type.GetProperty(hasManyAttr.ForeignKey).GetGetMethod();
+                MethodInfo getHasManyObjPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(hasManyAttr.Type);
+                MethodInfo getReferenceKeyMethod = referenceKeyPropName.IsEmpty() ?
+                    getPrimaryKeyMethod :
+                    modelType.GetProperty(referenceKeyPropName).GetGetMethod();
+
+                string referenceKeyList = referenceKeyPropName.IsEmpty() ?
+                    primaryKeyList :
+                    models
+                        .Select(model => (int)getReferenceKeyMethod.Invoke(model, null))
+                        .Distinct().OrderBy(i => i).JoinToString(", ");
+
+                Action<object, List<object>> setObjListToHasManyProp = FunctionGenerator.GenerateSetObjListToListPropFunction(
+                    setHasManyMethod, modelType, hasManyAttr.Type);
+
+                #endregion
+
+
+                string selectQueryBase = string.Format(
+                    "SELECT * FROM [{0}] WHERE [{1}] = ",
+                    hasManyAttr.Type.Name,
+                    hasManyAttr.ForeignKey);
+
+                foreach (var model in models)
+                {
+                    //// SQL文を作る
+                    // SELECT * FROM hasManyTable WHERE foreignKey = referenceKey
+                    int modelReferenceKey = (int)getReferenceKeyMethod.Invoke(model, null);
+                    string selectQuery = selectQueryBase + modelReferenceKey;
+
+                    //// SQLを発行するLazyObjectの作成
+                    var lazyObj = new Lazy<object>(() =>
+                    {
+                        ILookup<int, object> hasManyLookup = ORMapInternal<object>(
+                            connectionString, null, selectQuery, hasManyAttr.Type,
+                            1, 0,
+                            hasManyAttr.InverseBelongsToPropertyName, models,
+                            null, null
+                            ).ToLookup(
+                            hasManyObj => (int)getHasManyObjForeginKeyMethod.Invoke(hasManyObj, null),
+                            hasManyObj =>
+                            {
+                                object loaded = null;
+
+                                if (hasManyAttr.Property.Name == loadedHasManyPropertyName &&
+                                    loadedHasManyObjDict.TryGetValue((int)getHasManyObjPrimaryKeyMethod.Invoke(hasManyObj, null), out loaded))
+                                {
+                                    return loaded;
+                                }
+                                else
+                                {
+                                    return hasManyObj;
+                                }
+                            });
+
+                        int referenceKey = (int)getReferenceKeyMethod.Invoke(model, null);
+
+                        // trick
+                        setObjListToHasManyProp(model, hasManyLookup[referenceKey].ToList());
+                        return ((DBSimpleModel)model).Dict[hasManyAttr.Property.Name].Value;
+                     });
+
+                    ((DBSimpleModel)model).Dict[hasManyAttr.Property.Name] = lazyObj;
+                }
+            }
+        }
 
         /// <summary>
         /// Lazyを仕込む
@@ -495,7 +585,7 @@ namespace Ha2ne2.DBSimple
         /// <param name="currentDepth">現在の深さ</param>
         /// <param name="loadedBelongsToPropertyName">読み込み済みプロパティの名前</param>
         /// <param name="loadedBelongsToObj">読み込み済みプロパティのモデル</param>
-        private static void SetLazyObjToBelongsTo(
+        private static void SetLazyObjToBelongsToProp(
             string connectionString,
             IEnumerable<object> models,
             string loadedBelongsToPropertyName,

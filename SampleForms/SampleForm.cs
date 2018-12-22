@@ -71,12 +71,12 @@ namespace Ha2ne2.DBSimple.Forms
             ClearCache();
 
             Debug.WriteLine("---------------------------------------------------------------------------------------");
-            Debug.WriteLine("var authors = DBSimple.ORMap<Author>(connString, \"SELECT * FROM [Author]\", preloadDepth: 2);");
+            Debug.WriteLine("var authors = DBSimple.ORMap<Author>(connString, \"SELECT * FROM [Author]\", preloadDepth: 0);");
             Debug.WriteLine("---------------------------------------------------------------------------------------");
             var users = DBSimple.ORMap<Author>(
                 Util.GetConnectionString(),
                 "SELECT * FROM [Author]",
-                preloadDepth: 2);
+                preloadDepth: 0);
 
             Debug.WriteLine(string.Empty);
             Debug.WriteLine("---------------------------------------------------------------------------------------");
