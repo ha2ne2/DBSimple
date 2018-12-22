@@ -7,8 +7,8 @@ namespace Ha2ne2.DBSimple
 {
     public class HasManyAttribute : ORAttribute
     {
-        public Type ChildType { get; protected set; }
-        public string ParentKey { get; protected set; }
+        public Type Type { get; protected set; }
+        public string MyKey { get; protected set; }
         public string ForeignKey { get; protected set; }
         public PropertyInfo Property { get; internal protected set; }
 
@@ -18,14 +18,20 @@ namespace Ha2ne2.DBSimple
         public PropertyInfo InverseBelongsToProperty { get { return InversePropAndAttr.Value?.Item1; } }
         public BelongsToAttribute InverseBelongsToAttribute { get { return InversePropAndAttr.Value?.Item2; } }
 
-        public HasManyAttribute(Type childType, string foreignKey, string parentKey = "")
+        /// <summary>
+        /// HasManyAttribute
+        /// </summary>
+        /// <param name="type">HasManyのType</param>
+        /// <param name="foreignKey">HasMany先が持つ外部キー名</param>
+        /// <param name="referenceKey">通常外部キーは他テーブルの主キーとリンクするが、主キーでない列とリンクさせたい時にこの引数を指定する</param>
+        public HasManyAttribute(Type type, string foreignKey, string referenceKey = "")
         {
-            ChildType = childType;
-            ParentKey = parentKey;
+            Type = type;
             ForeignKey = foreignKey;
+            MyKey = referenceKey;
 
             InversePropAndAttr = new Lazy<Tuple<PropertyInfo, BelongsToAttribute>>(() =>
-                PropertyUtil.FindBelongsToProperty(ChildType, ForeignKey));
+                PropertyUtil.FindBelongsToProperty(Type, ForeignKey));
         }        
     }
 }

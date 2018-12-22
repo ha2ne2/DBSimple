@@ -1,11 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 15
-VisualStudioVersion = 15.0.28010.2041
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.28407.52
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleForms", "SampleForms\SampleForms.csproj", "{77046638-2045-4BB6-99AC-041626F04438}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Model", "Model\Model.csproj", "{C2541525-82C5-42E8-B136-951982C917F6}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SampleModels", "Model\SampleModels.csproj", "{C2541525-82C5-42E8-B136-951982C917F6}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DBSimple", "DBSimple\DBSimple.csproj", "{432D1DBF-F80F-4090-90E4-878A6877B034}"
 EndProject

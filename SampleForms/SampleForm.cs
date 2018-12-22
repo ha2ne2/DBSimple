@@ -10,16 +10,16 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 
 using Dapper;
-using Ha2ne2.DBSimple.Model;
+using Ha2ne2.DBSimple.SampleModels;
 using Ha2ne2.DBSimple.Util;
 
 namespace Ha2ne2.DBSimple.Forms
 {
-    public partial class Form1 : Form
+    public partial class SampleForm : Form
     {
         #region コンストラクタ
 
-        public Form1()
+        public SampleForm()
         {
             InitializeComponent();
         }
@@ -71,21 +71,21 @@ namespace Ha2ne2.DBSimple.Forms
             ClearCache();
 
             Debug.WriteLine("---------------------------------------------------------------------------------------");
-            Debug.WriteLine("var users = DBSimple.ORMap<User>(connString, \"SELECT * FROM [User]\", preloadDepth: 2);");
+            Debug.WriteLine("var authors = DBSimple.ORMap<Author>(connString, \"SELECT * FROM [Author]\", preloadDepth: 2);");
             Debug.WriteLine("---------------------------------------------------------------------------------------");
-            var users = DBSimple.ORMap<User>(
+            var users = DBSimple.ORMap<Author>(
                 Util.GetConnectionString(),
-                "SELECT * FROM [User]",
+                "SELECT * FROM [Author]",
                 preloadDepth: 2);
 
             Debug.WriteLine(string.Empty);
             Debug.WriteLine("---------------------------------------------------------------------------------------");
-            Debug.WriteLine("DUMP(users);");
+            Debug.WriteLine("DUMP(authors);");
             Debug.WriteLine("---------------------------------------------------------------------------------------");
             Debug.WriteLine(string.Empty);
             Debug.WriteLine(ObjectDumper.Dump(users).Replace("\r", ""));
 
-            //Debug.WriteLine(users[0].Posts[0].Title);
+            //Debug.WriteLine(users[0].Books[0].Title);
 
         }
 
@@ -94,16 +94,16 @@ namespace Ha2ne2.DBSimple.Forms
             ClearCache();
 
             Debug.WriteLine("---------------------------------------------------------------------------------------");
-            Debug.WriteLine("var posts = DBSimple.ORMap<Post>(connString, \"SELECT * FROM [Post] WHERE PostID = 1002\", preloadDepth: 0);");
+            Debug.WriteLine("var books = DBSimple.ORMap<Book>(connString, \"SELECT * FROM [Book] WHERE BookID = 4\", preloadDepth: 0);");
             Debug.WriteLine("---------------------------------------------------------------------------------------");
-            var posts = DBSimple.ORMap<Post>(
+            var posts = DBSimple.ORMap<Book>(
                 Util.GetConnectionString(),
-                "SELECT * FROM [Post] WHERE PostID = 1002",
+                "SELECT * FROM [Book] WHERE BookID = 4",
                 preloadDepth: 0);
 
             Debug.WriteLine(string.Empty);
             Debug.WriteLine("---------------------------------------------------------------------------------------");
-            Debug.WriteLine("DUMP(posts);");
+            Debug.WriteLine("DUMP(books);");
             Debug.WriteLine("---------------------------------------------------------------------------------------");
             Debug.WriteLine(string.Empty);
             Debug.WriteLine(ObjectDumper.Dump(posts).Replace("\r", ""));

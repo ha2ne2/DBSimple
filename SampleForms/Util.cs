@@ -19,7 +19,7 @@ namespace Ha2ne2.DBSimple.Forms
                 DataSource = ConfigurationManager.AppSettings["SQLServerName"],
                 InitialCatalog = ConfigurationManager.AppSettings["SQLDBName"],
                 IntegratedSecurity = Convert.ToBoolean(ConfigurationManager.AppSettings["TrustedConnection"]),
-                //UserID = "(ユーザー名)",
+                //AuthorID = "(ユーザー名)",
                 //Password = "(パスワード)"
             };
             return builder.ToString();
