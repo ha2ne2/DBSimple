@@ -16,9 +16,12 @@ namespace Ha2ne2.DBSimple.Util
         /// DBの1行をTModelにマップする関数を返す関数
         /// </summary>
         /// <typeparam name="TModel"></typeparam>
+        /// <param name="selectQuery">セレクトクエリ(例外が起こった時の表示用)</param>
         /// <param name="rdr"></param>
+        /// <param name="actualType"></param>
         /// <returns></returns>
         public static Func<SqlDataReader, TModel> GenerateMapFunction<TModel>(
+            string selectQuery,
             SqlDataReader rdr,
             Type actualType = null)
         {
@@ -52,7 +55,17 @@ namespace Ha2ne2.DBSimple.Util
                     continue;
 
                 // rdrから列の序数を取得
-                ConstantExpression colOrdinal = Expression.Constant(rdr.GetOrdinal(propInfo.Name));
+                ConstantExpression colOrdinal = null;
+
+                try
+                {
+                    colOrdinal = Expression.Constant(rdr.GetOrdinal(propInfo.Name));
+                }
+                catch (IndexOutOfRangeException)
+                {
+                    throw new IndexOutOfRangeException($"Column {propInfo.Name} was Not Found. Check your model definition and Query.\r\nModel: {actualType.ToString()}\r\nSelect Query : {selectQuery}");
+                }
+
 
                 // モデルのプロパティのセッターを取得
                 MethodInfo setProp = propInfo.GetSetMethod();

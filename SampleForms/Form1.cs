@@ -11,6 +11,7 @@ using System.Windows.Forms;
 
 using Dapper;
 using Ha2ne2.DBSimple.Model;
+using Ha2ne2.DBSimple.Util;
 
 namespace Ha2ne2.DBSimple.Forms
 {
@@ -30,25 +31,39 @@ namespace Ha2ne2.DBSimple.Forms
         private void btnGetByReflection_Click(object sender, EventArgs e)
         {
             ClearCache();
-            dataGridView1.DataSource = GetModelListByReflection<OrderHeader>("SELECT * FROM Sales.SalesOrderheader2");
+
+            List<OrderHeader> orderHeaderList = GetModelListByReflection<OrderHeader>(
+                Util.GetConnectionString(),
+                "SELECT * FROM Sales.SalesOrderheader");
+
+            dataGridView1.DataSource = orderHeaderList;
+        }
+
+        private void btnGetByDBSimple_Click(object sender, EventArgs e)
+        {
+            ClearCache();
+
+            List<OrderHeader> orderHeaderList = GetModelListByDBSimple<OrderHeader>(
+                Util.GetConnectionString(),
+                "SELECT * FROM Sales.SalesOrderheader");
+
+            dataGridView1.DataSource = orderHeaderList;
         }
 
         private void btnGetByDapper_Click(object sender, EventArgs e)
         {
             ClearCache();
-            dataGridView1.DataSource = GetModelListByDapper<OrderHeader>("SELECT * FROM Sales.SalesOrderheader2");
+
+            List<OrderHeader> orderHeaderList = GetModelListByDapper<OrderHeader>(
+                Util.GetConnectionString(),
+                "SELECT * FROM Sales.SalesOrderheader");
+
+            dataGridView1.DataSource = orderHeaderList;
         }
 
-        private void btnGetByBijector_Click(object sender, EventArgs e)
+        private void btnClear_Click(object sender, EventArgs e)
         {
-            ClearCache();
-            //dataGridView1.DataSource = GetModelListByBijector<OrderHeader>("SELECT * FROM Sales.SalesOrderheader2");
-            var OrderHeaderList = DBSimple.ORMap<OrderHeader>(
-                Util.GetConnectionString(),
-                "SELECT * FROM Sales.SalesOrderheader2");
-
-            dataGridView1.DataSource = OrderHeaderList;
-            int i = 1;
+            dataGridView1.DataSource = null;
         }
 
         private void btnORMap_Click(object sender, EventArgs e)
@@ -68,7 +83,7 @@ namespace Ha2ne2.DBSimple.Forms
             Debug.WriteLine("DUMP(users);");
             Debug.WriteLine("---------------------------------------------------------------------------------------");
             Debug.WriteLine(string.Empty);
-            Debug.WriteLine(ObjectDumper.Dump(users).Replace("\r",""));
+            Debug.WriteLine(ObjectDumper.Dump(users).Replace("\r", ""));
 
             //Debug.WriteLine(users[0].Posts[0].Title);
 
@@ -94,16 +109,72 @@ namespace Ha2ne2.DBSimple.Forms
             Debug.WriteLine(ObjectDumper.Dump(posts).Replace("\r", ""));
         }
 
-
-        private void btnAsyncAwait_Click(object sender, EventArgs e)
-        {
-            dataGridView1.DataSource = null;
-        }
-
         #endregion
 
         #region プライベートメソッド
 
+        /// <summary>
+        /// リフレクションを使ってDBからモデルのリストを取得
+        /// </summary>
+        /// <returns></returns>
+        private List<TModel> GetModelListByReflection<TModel>(string connectionString, string selectQuery) where TModel : new()
+        {
+            return CommonUtil.MeasureTime("Reflection", string.Empty, 0, () =>
+            {
+                DataTable table = Util.GetDataTable(connectionString, selectQuery);
+                List<TModel> modelList = Util.DataTableToModelListByReflection<TModel>(table);
+
+                return modelList;
+            });
+        }
+
+        private List<TModel> GetModelListByDBSimple<TModel>(string connectionString, string selectQuery)
+        {
+            return CommonUtil.MeasureTime("DBSimple", string.Empty, 0, () =>
+            {
+                List<TModel> modelList = new List<TModel>();
+
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    // データベースと接続
+                    connection.Open();
+
+                    using (var command = connection.CreateCommand())
+                    using (var tx = connection.BeginTransaction())
+                    {
+                        return DBSimple.SimpleMap<TModel>(tx, selectQuery);
+                    }
+                }
+            });
+        }
+
+        /// <summary>
+        /// Dapperを使ってDBからモデルのリストを取得
+        /// </summary>
+        /// <returns></returns>
+        private List<TModel> GetModelListByDapper<TModel>(string connectionString, string selectQuery)
+        {
+            return CommonUtil.MeasureTime("Dapper", string.Empty, 0, () =>
+            {
+                List<TModel> modelList = new List<TModel>();
+
+                using (var connection = new SqlConnection(connectionString))
+                {
+                    // データベースと接続
+                    connection.Open();
+
+                    using (var command = connection.CreateCommand())
+                    using (var tx = connection.BeginTransaction())
+                    {
+                        return connection.Query<TModel>(selectQuery, null, tx).ToList();
+                    }
+                }
+            });
+        }
+
+        /// <summary>
+        /// DBの実行プランのキャッシュなどをクリアする。
+        /// </summary>
         private void ClearCache()
         {
             // 接続文字列の取得
@@ -112,46 +183,10 @@ namespace Ha2ne2.DBSimple.Forms
             using (var connection = new SqlConnection(connectionString))
             using (var command = connection.CreateCommand())
             {
-                // データベースと接続
                 connection.Open();
-
-                // SQL文をコマンドにセット
-                command.CommandText = "DBCC DROPCLEANBUFFERS;DBCC FREEPROCCACHE";
-
+                command.CommandText = "DBCC DROPCLEANBUFFERS; DBCC FREEPROCCACHE";
                 command.ExecuteNonQuery();
             }
-        }
-
-        private List<TModel> GetModelListByDapper<TModel>(string sql)
-        {
-            return Util.MeasureTime("GetModelList2", () =>
-            {
-                List<TModel> modelList = new List<TModel>();
-
-                // 接続文字列の取得
-                string connectionString = Util.GetConnectionString();
-
-                using (var connection = new SqlConnection(connectionString))
-                using (var command = connection.CreateCommand())
-                {
-                    // データベースと接続
-                    connection.Open();
-
-                    return connection.Query<TModel>(sql).ToList();
-                }
-            });
-        }
-
-        /// <summary>
-        /// DBからモデルのリストを取得
-        /// </summary>
-        /// <returns></returns>
-        private List<TModel> GetModelListByReflection<TModel>(string sql) where TModel : new()
-        {
-            DataTable table = Util.GetDataTable(sql);
-            List<TModel> modelList = Util.DataTableToModelListByReflection<TModel>(table);
-
-            return modelList;
         }
 
         #endregion

@@ -28,7 +28,7 @@
             this.dataGridView1 = new System.Windows.Forms.DataGridView();
             this.btnGetByDapper = new System.Windows.Forms.Button();
             this.btnGetByBijector = new System.Windows.Forms.Button();
-            this.btnAsyncAwait = new System.Windows.Forms.Button();
+            this.btnClear = new System.Windows.Forms.Button();
             this.btnORMap = new System.Windows.Forms.Button();
             this.button1 = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
@@ -46,6 +46,9 @@
             // 
             // dataGridView1
             // 
+            this.dataGridView1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
+            | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
             this.dataGridView1.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dataGridView1.Location = new System.Drawing.Point(12, 47);
             this.dataGridView1.Name = "dataGridView1";
@@ -71,24 +74,24 @@
             this.btnGetByBijector.TabIndex = 3;
             this.btnGetByBijector.Text = "DBSimpleで取得";
             this.btnGetByBijector.UseVisualStyleBackColor = true;
-            this.btnGetByBijector.Click += new System.EventHandler(this.btnGetByBijector_Click);
+            this.btnGetByBijector.Click += new System.EventHandler(this.btnGetByDBSimple_Click);
             // 
-            // btnAsyncAwait
+            // btnClear
             // 
-            this.btnAsyncAwait.Location = new System.Drawing.Point(668, 12);
-            this.btnAsyncAwait.Name = "btnAsyncAwait";
-            this.btnAsyncAwait.Size = new System.Drawing.Size(120, 23);
-            this.btnAsyncAwait.TabIndex = 4;
-            this.btnAsyncAwait.Text = "クリア";
-            this.btnAsyncAwait.UseVisualStyleBackColor = true;
-            this.btnAsyncAwait.Click += new System.EventHandler(this.btnAsyncAwait_Click);
+            this.btnClear.Location = new System.Drawing.Point(390, 12);
+            this.btnClear.Name = "btnClear";
+            this.btnClear.Size = new System.Drawing.Size(66, 23);
+            this.btnClear.TabIndex = 4;
+            this.btnClear.Text = "クリア";
+            this.btnClear.UseVisualStyleBackColor = true;
+            this.btnClear.Click += new System.EventHandler(this.btnClear_Click);
             // 
             // btnORMap
             // 
             this.btnORMap.BackColor = System.Drawing.Color.OrangeRed;
             this.btnORMap.Font = new System.Drawing.Font("MS UI Gothic", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(128)));
             this.btnORMap.ForeColor = System.Drawing.Color.White;
-            this.btnORMap.Location = new System.Drawing.Point(390, 6);
+            this.btnORMap.Location = new System.Drawing.Point(542, 6);
             this.btnORMap.Name = "btnORMap";
             this.btnORMap.Size = new System.Drawing.Size(120, 35);
             this.btnORMap.TabIndex = 5;
@@ -101,7 +104,7 @@
             this.button1.BackColor = System.Drawing.Color.OrangeRed;
             this.button1.Font = new System.Drawing.Font("MS UI Gothic", 9F, System.Drawing.FontStyle.Bold, System.Drawing.GraphicsUnit.Point, ((byte)(128)));
             this.button1.ForeColor = System.Drawing.Color.White;
-            this.button1.Location = new System.Drawing.Point(390, 47);
+            this.button1.Location = new System.Drawing.Point(668, 6);
             this.button1.Name = "button1";
             this.button1.Size = new System.Drawing.Size(120, 35);
             this.button1.TabIndex = 6;
@@ -116,7 +119,7 @@
             this.ClientSize = new System.Drawing.Size(800, 450);
             this.Controls.Add(this.button1);
             this.Controls.Add(this.btnORMap);
-            this.Controls.Add(this.btnAsyncAwait);
+            this.Controls.Add(this.btnClear);
             this.Controls.Add(this.btnGetByBijector);
             this.Controls.Add(this.btnGetByDapper);
             this.Controls.Add(this.dataGridView1);
@@ -134,7 +137,7 @@
         private System.Windows.Forms.DataGridView dataGridView1;
         private System.Windows.Forms.Button btnGetByDapper;
         private System.Windows.Forms.Button btnGetByBijector;
-        private System.Windows.Forms.Button btnAsyncAwait;
+        private System.Windows.Forms.Button btnClear;
         private System.Windows.Forms.Button btnORMap;
         private System.Windows.Forms.Button button1;
     }

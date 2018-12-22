@@ -53,7 +53,7 @@
     <Compile Include="Util\FunctionGenerator.cs" />
     <Compile Include="Util\PropertyUtil.cs" />
     <Compile Include="Util\StringUtil.cs" />
-    <Compile Include="Util\Util.cs" />
+    <Compile Include="Util\CommonUtil.cs" />
   </ItemGroup>
   <ItemGroup />
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

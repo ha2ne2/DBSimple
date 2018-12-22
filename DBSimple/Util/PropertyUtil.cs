@@ -140,10 +140,10 @@ namespace Ha2ne2.DBSimple.Util
                 .FirstOrDefault(p => p.GetCustomAttributes(typeof(PrimaryKeyAttribute), false).Count() >= 1);
 
             if (prop == null)
-                throw new Exception($"Class: {t.Name} PrimaryKey Property was not found");
+                throw new Exception($"{t.Name} Class: PrimaryKey Property was not found");
 
             if (!prop.CanRead)
-                throw new Exception($"Class: {t.Name} PrimaryKey Property doesn't have getter");
+                throw new Exception($"{t.Name} Class: PrimaryKey Property doesn't have getter");
 
             return prop.Name;
         }
@@ -159,10 +159,10 @@ namespace Ha2ne2.DBSimple.Util
                 .FirstOrDefault(p => p.GetCustomAttributes(typeof(PrimaryKeyAttribute), false).Count() >= 1);
 
             if (prop == null)
-                throw new Exception($"Class: {t.Name} PrimaryKey Property was not found");
+                throw new Exception($"{t.Name} Class: PrimaryKey Property was not found");
 
             if (!prop.CanRead)
-                throw new Exception($"Class: {t.Name} PrimaryKey Property doesn't have getter");
+                throw new Exception($"{t.Name} Class: PrimaryKey Property doesn't have getter");
 
             return prop.GetGetMethod();
         }

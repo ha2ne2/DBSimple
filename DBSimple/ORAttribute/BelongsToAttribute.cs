@@ -13,9 +13,9 @@ namespace Ha2ne2.DBSimple
 
         private Lazy<Tuple<PropertyInfo, HasManyAttribute>> InversePropAndAttr;
 
-        public string InverseHasManyPropertyName { get => InversePropAndAttr.Value?.Item1.Name; }
-        public PropertyInfo InverseHasManyProperty { get => InversePropAndAttr.Value?.Item1; }
-        public HasManyAttribute InverseHasManyAttribute { get => InversePropAndAttr.Value?.Item2; }
+        public string InverseHasManyPropertyName { get { return InversePropAndAttr.Value?.Item1.Name; } }
+        public PropertyInfo InverseHasManyProperty { get { return InversePropAndAttr.Value?.Item1; } }
+        public HasManyAttribute InverseHasManyAttribute { get { return InversePropAndAttr.Value?.Item2; } }
 
         public BelongsToAttribute(Type parentType, string foreignKey, string parentKey = "")
         {

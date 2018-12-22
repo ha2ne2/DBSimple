@@ -40,7 +40,6 @@ namespace Ha2ne2.DBSimple
             }
         }
 
-
         /// <summary>
         /// シンプルなマップ
         /// </summary>
@@ -52,7 +51,6 @@ namespace Ha2ne2.DBSimple
         {
             using (var command = new SqlCommand())
             {
-                Stopwatch sw = new Stopwatch();
                 List<TModel> modelList = new List<TModel>();
 
                 // コマンドの組み立て
@@ -63,28 +61,50 @@ namespace Ha2ne2.DBSimple
                 // SQLの実行
                 using (SqlDataReader rdr = command.ExecuteReader())
                 {
-                    Func<SqlDataReader, TModel> map = FunctionGenerator.GenerateMapFunction<TModel>(rdr);
+                    Func<SqlDataReader, TModel> map = FunctionGenerator.GenerateMapFunction<TModel>(selectQuery, rdr);
                     while (rdr.Read())
                     {
                         modelList.Add(map(rdr));
                     }
                 }
-                sw.Stop();
-                Console.WriteLine(string.Format(
-                    "[{0,-10}] ({1,3}ms)",
-                    "SimpleMap", sw.ElapsedMilliseconds));
                 return modelList;
             }
         }
-
 
         /// <summary>
         /// ORマップをします
         /// </summary>
         /// <typeparam name="TModel"></typeparam>
+        /// <param name="connectionString"></param>
+        /// <param name="selectQuery"></param>
+        /// <param name="preloadDepth">プリロードする深さ</param>
+        /// <returns></returns>
+        public static List<TModel> ORMap<TModel>(
+            string connectionString,
+            string selectQuery,
+            int preloadDepth = 1
+            )
+            where TModel : class
+        {
+            using (var connection = new SqlConnection(connectionString))
+            {
+                // データベースと接続
+                connection.Open();
+                using (var tx = connection.BeginTransaction())
+                {
+                    return ORMap<TModel>(connectionString, tx, selectQuery, preloadDepth);
+                }
+            }
+        }
+
+        /// <summary>
+        /// ORマップをします
+        /// </summary>
+        /// <typeparam name="TModel"></typeparam>
+        /// <param name="connectionString"></param>
         /// <param name="tx"></param>
         /// <param name="selectQuery"></param>
-        /// <param name="preloadDepth"></param>
+        /// <param name="preloadDepth">プリロードする深さ</param>
         /// <returns></returns>
         public static List<TModel> ORMap<TModel>(
             string connectionString,
@@ -94,48 +114,9 @@ namespace Ha2ne2.DBSimple
             )
             where TModel : class
         {
-            return ORMapInternal<TModel>(connectionString, tx, selectQuery.Shrink(), typeof(TModel), preloadDepth, 0, null, null, null,null);
-        }
-
-        /// <summary>
-        /// ORマップをします
-        /// </summary>
-        /// <typeparam name="TModel"></typeparam>
-        /// <param name="connectionString"></param>
-        /// <param name="selectQuery"></param>
-        /// <param name="preloadDepth"></param>
-        /// <returns></returns>
-        public static List<TModel> ORMap<TModel>(
-            string connectionString,
-            string selectQuery,
-            int preloadDepth = 1
-            )
-            where TModel : class
-        {
             return CommonUtil.MeasureTime("ORMap", "TOTAL ELAPSED TIME", 0, () =>
             {
-                // Make sure we can always go to the catch block, 
-                // so we can set the latency mode back to `oldMode`
-                GCLatencyMode oldMode = GCSettings.LatencyMode;
-                RuntimeHelpers.PrepareConstrainedRegions();
-                try
-                {
-                    GCSettings.LatencyMode = GCLatencyMode.LowLatency;
-                    using (var connection = new SqlConnection(connectionString))
-                    {
-                        // データベースと接続
-                        connection.Open();
-                        using (var tx = connection.BeginTransaction())
-                        {
-                            return ORMap<TModel>(connectionString, tx, selectQuery, preloadDepth);
-                        }
-                    }
-                }
-                finally
-                {
-                    // ALWAYS set the latency mode back
-                    GCSettings.LatencyMode = oldMode;
-                }
+                return ORMapInternal<TModel>(connectionString, tx, selectQuery, typeof(TModel), preloadDepth, 0, null, null, null, null);
             });
         }
 
@@ -150,12 +131,12 @@ namespace Ha2ne2.DBSimple
         /// <param name="tx">SQLトランザクション</param>
         /// <param name="selectQuery">セレクトクエリー</param>
         /// <param name="typeofModel">モデルの実際の型</param>
-        /// <param name="preloadDepth">preloadする深さ</param>
+        /// <param name="preloadDepth">プリロードする深さ</param>
         /// <param name="currentDepth">現在の深さ（出力のインデントに使う）</param>
         /// <param name="loadedBelongsToPropertyName">読み込み済みBelongsToプロパティの名前</param>
         /// <param name="loadedParents">読み込み済みBelongsToプロパティのモデルのリスト</param>
         /// <param name="loadedHasManyPropertyName">読み込み済みHasManyプロパティの名前</param>
-        /// <param name="loadedChildren">読み込み済みHasManyプロパティのモデルのディクショナリ</param>
+        /// <param name="loadedChildren">読み込み済みHasManyプロパティのモデルのディクショナリ(キーはChildrenのPK)</param>
         /// <returns></returns>
         private static List<TModel> ORMapInternal<TModel>(
             string connectionString,
@@ -167,7 +148,7 @@ namespace Ha2ne2.DBSimple
             string loadedBelongsToPropertyName,
             IEnumerable<object> loadedParents,
             string loadedHasManyPropertyName,
-            Dictionary<int,object> loadedChildren
+            Dictionary<int, object> loadedChildren
             )
             where TModel : class
         {
@@ -177,6 +158,7 @@ namespace Ha2ne2.DBSimple
 
                 if (tx == null)
                 {
+                    // トランザクションがnullならトランザクションを開始して再起
                     using (var connection = new SqlConnection(connectionString))
                     {
                         // データベースと接続
@@ -210,7 +192,7 @@ namespace Ha2ne2.DBSimple
                         using (SqlDataReader rdr = command.ExecuteReader())
                         {
                             Func<SqlDataReader, TModel> map =
-                                FunctionGenerator.GenerateMapFunction<TModel>(rdr, typeofModel);
+                                FunctionGenerator.GenerateMapFunction<TModel>(selectQuery, rdr, typeofModel);
                             while (rdr.Read())
                             {
                                 modelList.Add(map(rdr));
@@ -224,10 +206,10 @@ namespace Ha2ne2.DBSimple
                     }
                     else if (preloadDepth > 0)
                     {
-                        PreloadBelongsTo(connectionString, tx, modelList.AsEnumerable(), preloadDepth, currentDepth,
-                                         loadedBelongsToPropertyName, loadedParents);
                         PreloadHasMany(connectionString, tx, modelList.AsEnumerable(), preloadDepth, currentDepth,
                                        loadedHasManyPropertyName, loadedChildren);
+                        PreloadBelongsTo(connectionString, tx, modelList.AsEnumerable(), preloadDepth, currentDepth,
+                                         loadedBelongsToPropertyName, loadedParents);
                     }
                     else
                     {
@@ -316,7 +298,7 @@ namespace Ha2ne2.DBSimple
                 string selectQuery = string.Format(
                     "SELECT * FROM [{0}] WHERE [{1}] IN ({2})",
                     hasManyAttr.ChildType.Name,  // TODO クラス名がテーブル名という前提
-                    hasManyAttr.ForeignKey, // TODO 外部キープロパティ名が外部キー名という前提
+                    hasManyAttr.ForeignKey,      // TODO 外部キープロパティ名が外部キー名という前提
                     parentKeyList);                
 
                 //// SQLを発行してchildのリストを作り、ForeignKeyをキーにしたLookupに変換する
@@ -353,7 +335,6 @@ namespace Ha2ne2.DBSimple
                 }
             }              
         }
-
 
         /// <summary>
         /// IEnumerable＜object＞型にキャストされたモデルのリストの
@@ -392,6 +373,8 @@ namespace Ha2ne2.DBSimple
                 MethodInfo getChildForeignKeyMethod = childType.GetProperty(belongsToAttr.ForeignKey).GetGetMethod();
                 MethodInfo getChildPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(childType);
                 Dictionary<int, object> childDict = children
+                    // 左外部結合で補助的なテーブルを左に置き主キーがnullになるケースがある。そういうレコードは飛ばす。
+                    .Where(child => (int)getChildPrimaryKeyMethod.Invoke(child, null) != 0)
                     .ToDictionary(child => (int)getChildPrimaryKeyMethod.Invoke(child,null));
                 Type parentType = belongsToAttr.ParentType;
                 string parentKeyPropertyName = StringUtil.EmptyOr(
