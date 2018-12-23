@@ -95,7 +95,7 @@
       <Project>{432d1dbf-f80f-4090-90e4-878a6877b034}</Project>
       <Name>DBSimple</Name>
     </ProjectReference>
-    <ProjectReference Include="..\Model\SampleModels.csproj">
+    <ProjectReference Include="..\SampleModels\SampleModels.csproj">
       <Project>{c2541525-82c5-42e8-b136-951982c917f6}</Project>
       <Name>SampleModels</Name>
     </ProjectReference>

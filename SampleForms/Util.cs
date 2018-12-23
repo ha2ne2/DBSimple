@@ -31,8 +31,8 @@ namespace Ha2ne2.DBSimple.Forms
         /// <returns></returns>
         public static DataTable GetDataTable(string connectionString, string sql)
         {
-            return CommonUtil.MeasureTime("GetDataTable", string.Empty, 1, () =>
-            {
+            //return CommonUtil.MeasureTime("GetDataTable", string.Empty, 1, () =>
+            //{
                 DataTable table = new DataTable();
 
                 using (var connection = new SqlConnection(connectionString))
@@ -50,7 +50,7 @@ namespace Ha2ne2.DBSimple.Forms
                     adapter.Fill(table);
                 }
                 return table;
-            });
+            //});
         }
 
         /// <summary>
@@ -62,8 +62,8 @@ namespace Ha2ne2.DBSimple.Forms
         /// <returns></returns>
         public static List<TModel> DataTableToModelListByReflection<TModel>(DataTable table) where TModel : new()
         {
-            return CommonUtil.MeasureTime("DataTableToModelList", string.Empty, 1, () =>
-            {
+            //return CommonUtil.MeasureTime("DataTableToModelList", string.Empty, 1, () =>
+            //{
                 List<TModel> modelList = new List<TModel>();
                 PropertyInfo[] properties = typeof(TModel).GetProperties();
 
@@ -116,7 +116,7 @@ namespace Ha2ne2.DBSimple.Forms
                     modelList.Add(model);
                 }
                 return modelList;
-            });
+            //});
         }               
     }
 }
