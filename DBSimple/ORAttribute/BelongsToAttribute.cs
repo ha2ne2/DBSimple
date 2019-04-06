@@ -9,10 +9,8 @@ namespace Ha2ne2.DBSimple
         public Type Type { get; protected set; }
         public string ReferenceKey { get; protected set; }
         public string ForeignKey { get; protected set; }
-        public PropertyInfo Property { get; internal protected set; }
 
         private Lazy<Tuple<PropertyInfo, HasManyAttribute>> InversePropAndAttr;
-
         public string InverseHasManyPropertyName { get { return InversePropAndAttr.Value?.Item1.Name; } }
         public PropertyInfo InverseHasManyProperty { get { return InversePropAndAttr.Value?.Item1; } }
         public HasManyAttribute InverseHasManyAttribute { get { return InversePropAndAttr.Value?.Item2; } }
@@ -21,7 +19,7 @@ namespace Ha2ne2.DBSimple
         /// BelongsToAttribute
         /// </summary>
         /// <param name="type">BelongsToのType</param>
-        /// <param name="foreignKey">自身の外部キー名</param>
+        /// <param name="foreignKey">外部キー名</param>
         /// <param name="referenceKey">通常外部キーは他テーブルの主キーとリンクするが、主キーでない列とリンクさせたい時にこの引数を指定する</param>
         public BelongsToAttribute(Type type, string foreignKey, string referenceKey = "")
         {

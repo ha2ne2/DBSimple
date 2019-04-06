@@ -8,9 +8,8 @@ namespace Ha2ne2.DBSimple
     public class HasManyAttribute : ORAttribute
     {
         public Type Type { get; protected set; }
-        public string MyKey { get; protected set; }
+        public string ReferenceKey { get; protected set; }
         public string ForeignKey { get; protected set; }
-        public PropertyInfo Property { get; internal protected set; }
 
         private Lazy<Tuple<PropertyInfo, BelongsToAttribute>> InversePropAndAttr;
 
@@ -28,7 +27,7 @@ namespace Ha2ne2.DBSimple
         {
             Type = type;
             ForeignKey = foreignKey;
-            MyKey = referenceKey;
+            ReferenceKey = referenceKey;
 
             InversePropAndAttr = new Lazy<Tuple<PropertyInfo, BelongsToAttribute>>(() =>
                 PropertyUtil.FindBelongsToProperty(Type, ForeignKey));

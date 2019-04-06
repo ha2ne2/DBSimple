@@ -10,6 +10,8 @@ namespace Ha2ne2.DBSimple.Util
 {
     public static class PropertyUtil
     {
+        #region public method
+
         /// <summary>
         /// タイプと外部キーを引数にとり、
         /// その外部キーを外部キーに持つBelongsTo属性とそれが紐づくプロパティを返します。
@@ -74,98 +76,93 @@ namespace Ha2ne2.DBSimple.Util
                 }).FirstOrDefault(tuple => tuple != null);
         }
 
-
         /// <summary>
-        /// Typeを引数にとり、HasMany属性のリストを返す。
+        /// Typeを引数にとり、HasMany属性のリストを返します。
         /// </summary>
         /// <param name="type"></param>
         /// <returns></returns>
         public static List<HasManyAttribute> GetHasManyAttrList(Type type)
         {
-            List<HasManyAttribute> result = new List<HasManyAttribute>();
-            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-            foreach (var prop in props)
-            {
-                var hasManyAttrs = prop
-                    .GetCustomAttributes(typeof(HasManyAttribute), true)
-                    .Cast<HasManyAttribute>();
-
-                if (hasManyAttrs.IsEmpty())
-                    continue;
-
-                // 1つのプロパティに複数のHasManyAttributeが付いていたときは例外を投げる
-                if (hasManyAttrs.Count() > 1)
-                    throw new AttributeException($"Property: {type.Name}.{prop.Name} has many HasManyAttribute.");
-
-                var hasManyAttr = hasManyAttrs.First();
-
-                // 属性からプロパティへの参照をセットする（そうしないと参照する手段がない）
-                hasManyAttr.Property = prop;
-                result.Add(hasManyAttr);
-            }
-
-            return result;
+            return GetAttributeList<HasManyAttribute>(type);
         }
 
+        /// <summary>
+        /// Typeを引数にとり、BelongsTo属性のリストを返します。
+        /// </summary>
+        /// <param name="type"></param>
+        /// <returns></returns>
         public static List<BelongsToAttribute> GetBelongsToAttrList(Type type)
         {
-            List<BelongsToAttribute> result = new List<BelongsToAttribute>();
-            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
-
-            foreach (var prop in props)
-            {
-                var belongsToAttrs = prop
-                    .GetCustomAttributes(typeof(BelongsToAttribute), true)
-                    .Cast<BelongsToAttribute>();
-
-                if (belongsToAttrs.IsEmpty())
-                    continue;
-
-                // 1つのプロパティに複数のBelongsToAttributeが付いていたときは例外を投げる
-                if (belongsToAttrs.Count() > 1)
-                    throw new AttributeException($"Property: {type.Name}.{prop.Name} has many BelongsToAttribute.");
-
-                var belongsToAttr = belongsToAttrs.First();
-
-                // 属性からプロパティへの参照をセットする（そうしないと参照する手段がない）
-                belongsToAttr.Property = prop;
-                result.Add(belongsToAttr);
-            }
-            return result;
+            return GetAttributeList<BelongsToAttribute>(type);
         }
 
+        /// <summary>
+        /// Typeを引数にとり、PrimaryKey属性の付いたプロパティの名前を返します。
+        /// </summary>
+        /// <param name="type"></param>
+        /// <returns></returns>
         public static string GetPrimaryKeyName(Type t)
         {
-            var props = t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-                .Where(p => p.GetCustomAttributes(typeof(PrimaryKeyAttribute), true).Count() >= 1);
-
-            // プライマリーキープロパティが定義されていなかった場合は例外を投げる
-            if (props.IsEmpty())
-                throw new Exception($"{t.Name} Class: PrimaryKey Property was not found");
-
-            // プライマリーキープロパティが複数定義されていた場合は例外を投げる
-            if (props.Count() > 1)
-                throw new Exception(
-                    $"{t.Name} Class: has many PrimaryKey Property\r\n" +
-                    string.Join(", ", props.Select(p => p.Name)));
-
-            var prop = props.First();
-
-            // プライマリーキープロパティにゲッターが設定されていなかった場合は例外を投げる
-            if (!prop.CanRead)
-                throw new Exception($"{t.Name} Class: PrimaryKey Property doesn't have getter");
-
+            var prop = GetPrimaryKeyProperty(t);
             return prop.Name;
         }
 
         /// <summary>
-        /// Type tを引数にとり、そのクラスのPrimaryKey属性のプロパティを取得する関数を返す関数です
+        /// Typeを引数にとり、そのクラスのPrimaryKey属性の付いたプロパティを取得する関数を返します。
         /// </summary>
         /// <param name="t"></param>
         /// <returns></returns>
         public static MethodInfo GetGetPrimaryKeyMethod(Type t)
         {
+            var prop = GetPrimaryKeyProperty(t);
+            return prop.GetGetMethod();
+        }
+
+        #endregion
+
+        #region private method
+
+        /// <summary>
+        /// Typeを引数にとり、指定された属性のリストを返します。
+        /// </summary>
+        /// <param name="type"></param>
+        /// <returns></returns>
+        public static List<T> GetAttributeList<T>(Type type) where T : ORAttribute
+        {
+            List<T> result = new List<T>();
+            var props = type.GetProperties(BindingFlags.Public | BindingFlags.Instance);
+
+            foreach (var prop in props)
+            {
+                var belongsToAttrs = prop
+                    .GetCustomAttributes(typeof(T), true)
+                    .Cast<T>();
+
+                if (belongsToAttrs.IsEmpty())
+                    continue;
+
+                // 1つのプロパティに複数の指定されたAttributeが付いていたときは例外を投げる
+                if (belongsToAttrs.Count() > 1)
+                    throw new AttributeException($"Property: {type.Name}.{prop.Name} has many {typeof(T).Name}.");
+
+                var belongsToAttr = belongsToAttrs.First();
+
+                // 属性からプロパティへの参照をセットする
+                //（プロパティから属性は取得できるが、属性からプロパティは取得できないので自分でセットする）
+                belongsToAttr.Property = prop;
+                result.Add(belongsToAttr);
+            }
+
+            return result;
+        }
+
+        /// <summary>
+        /// Typeを引数にとり、PrimaryKey属性の付いたプロパティのPropertyInfoを返します。
+        /// </summary>
+        /// <param name="t"></param>
+        /// <returns></returns>
+        public static PropertyInfo GetPrimaryKeyProperty(Type t)
+        {
             var props = t.GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(p => p.GetCustomAttributes(typeof(PrimaryKeyAttribute), true).Count() >= 1);
 
@@ -185,33 +182,9 @@ namespace Ha2ne2.DBSimple.Util
             if (!prop.CanRead)
                 throw new Exception($"{t.Name} Class: PrimaryKey Property doesn't have getter");
 
-            return prop.GetGetMethod();
+            return prop;
         }
 
-        /// <summary>
-        /// 
-        /// </summary>
-        /// <param name="childType"></param>
-        /// <param name="childForeignKeyProperty"></param>
-        /// <returns></returns>
-        public static MethodInfo GetSetBelongsToMethod(Type childType, PropertyInfo childForeignKeyProperty)
-        {
-            try
-            {
-                var belongsToAttr = childForeignKeyProperty
-                    .GetCustomAttributes(typeof(BelongsToAttribute), true)
-                    .Cast<BelongsToAttribute>()
-                    .SingleOrDefault();
-
-                return (belongsToAttr == null || belongsToAttr.ForeignKey.IsEmpty()) ?
-                    null :
-                    childType.GetProperty(belongsToAttr.ForeignKey).GetSetMethod();
-            }
-            catch (InvalidOperationException e)
-            {
-                throw new AttributeException($"Property: {childType.Name}.{childForeignKeyProperty.Name} has many BelongsToAttribute.", e);
-            }
-          
-        }
+        #endregion
     }
 }
