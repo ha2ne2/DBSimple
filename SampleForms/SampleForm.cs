@@ -71,12 +71,12 @@ namespace Ha2ne2.DBSimple.Forms
             ClearCache();
 
             Debug.WriteLine("---------------------------------------------------------------------------------------");
-            Debug.WriteLine("var authors = DBSimple.ORMap<Author>(connString, \"SELECT * FROM [Author]\", preloadDepth: 0);");
+            Debug.WriteLine("var authors = DBSimple.ORMap<Author>(connString, \"SELECT * FROM [Author]\", preloadDepth: 2);");
             Debug.WriteLine("---------------------------------------------------------------------------------------");
             var users = DBSimple.ORMap<Author>(
                 Util.GetConnectionString(),
                 "SELECT * FROM [Author]",
-                preloadDepth: 0);
+                preloadDepth: 2);
 
             Debug.WriteLine(string.Empty);
             Debug.WriteLine("---------------------------------------------------------------------------------------");
@@ -94,12 +94,12 @@ namespace Ha2ne2.DBSimple.Forms
             ClearCache();
 
             Debug.WriteLine("---------------------------------------------------------------------------------------");
-            Debug.WriteLine("var books = DBSimple.ORMap<Book>(connString, \"SELECT * FROM [Book] WHERE BookID = 4\", preloadDepth: 0);");
+            Debug.WriteLine("var books = DBSimple.ORMap<Book>(connString, \"SELECT * FROM [Book]\", preloadDepth: 2);");
             Debug.WriteLine("---------------------------------------------------------------------------------------");
             var posts = DBSimple.ORMap<Book>(
                 Util.GetConnectionString(),
-                "SELECT * FROM [Book] WHERE BookID = 4",
-                preloadDepth: 0);
+                "SELECT * FROM [Book]",
+                preloadDepth: 2);
 
             Debug.WriteLine(string.Empty);
             Debug.WriteLine("---------------------------------------------------------------------------------------");

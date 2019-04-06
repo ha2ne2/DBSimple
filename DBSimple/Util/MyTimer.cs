@@ -35,6 +35,9 @@ namespace Ha2ne2.DBSimple.Util
 
         public void Dispose()
         {
+            // GetFrameの引数は0だとこのメソッド、1だとusingブロックを含むメソッド、
+            // 2だとusingブロックを含むメソッドを呼び出したメソッドを示す。
+            // 欲しい情報は2なので2を指定している。
             MethodBase caller = new StackTrace().GetFrame(2).GetMethod();
             string callerClassName = caller.ReflectedType.Name;
             string callerName = callerClassName + "." + caller.Name;

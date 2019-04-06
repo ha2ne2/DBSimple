@@ -42,6 +42,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="DBSimpleModel.cs" />
+    <Compile Include="Exceptions\ColumnNotFoundException.cs" />
     <Compile Include="Exceptions\AttributeException.cs" />
     <Compile Include="ORAttribute\BelongsToAttribute.cs" />
     <Compile Include="ORAttribute\ORAttribute.cs" />

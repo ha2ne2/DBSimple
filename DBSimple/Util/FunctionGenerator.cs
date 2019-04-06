@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Ha2ne2.DBSimple.Exceptions;
+using System;
 using System.Collections.Generic;
 using System.Data.SqlClient;
 using System.Linq;
@@ -63,7 +64,7 @@ namespace Ha2ne2.DBSimple.Util
                 }
                 catch (IndexOutOfRangeException)
                 {
-                    throw new IndexOutOfRangeException($"Column {propInfo.Name} was Not Found. Check your model definition and Query.\r\nModel: {actualType.ToString()}\r\nSelect Query : {selectQuery}");
+                    throw new ColumnNotFoundException($"Column {propInfo.Name} was Not Found. Check your model definition and Query.\r\nModel: {actualType.ToString()}\r\nSelect Query : {selectQuery}");
                 }
 
 

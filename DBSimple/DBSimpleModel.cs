@@ -10,7 +10,7 @@ namespace Ha2ne2.DBSimple
 {
     public class DBSimpleModel
     {
-        public ConcurrentDictionary<string, Lazy<object>> Dict
+        internal ConcurrentDictionary<string, Lazy<object>> LazyLoaderDict
         {
             get;
             private set;
@@ -19,7 +19,7 @@ namespace Ha2ne2.DBSimple
         protected T Get<T>([CallerMemberName] string propName = "")
         {
             Lazy<object> obj = null;
-            if (Dict.TryGetValue(propName, out obj))
+            if (LazyLoaderDict.TryGetValue(propName, out obj))
             {
                 return (T)obj.Value;
             }
@@ -31,7 +31,7 @@ namespace Ha2ne2.DBSimple
 
         protected void Set<T>(T model, [CallerMemberName] string propName = "")
         {
-            Dict[propName] = new Lazy<object>(() => model);
+            LazyLoaderDict[propName] = new Lazy<object>(() => model);
         }
     }
 }

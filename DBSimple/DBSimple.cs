@@ -20,11 +20,11 @@ namespace Ha2ne2.DBSimple
         #region public method
 
         /// <summary>
-        /// シンプルなマップ
+        /// 接続文字列を引数で指定して、シンプルなマッピングを行う
         /// </summary>
-        /// <typeparam name="TModel"></typeparam>
-        /// <param name="connectionString"></param>
-        /// <param name="selectQuery"></param>
+        /// <typeparam name="TModel">マップするモデルの型</typeparam>
+        /// <param name="connectionString">接続文字列</param>
+        /// <param name="selectQuery">SQL</param>
         /// <returns></returns>
         public static List<TModel> SimpleMap<TModel>(string connectionString, string selectQuery)
         {
@@ -40,24 +40,24 @@ namespace Ha2ne2.DBSimple
         }
 
         /// <summary>
-        /// シンプルなマップ
+        /// トランザクションを引数で指定して、シンプルなマッピングを行う
         /// </summary>
-        /// <typeparam name="TModel"></typeparam>
-        /// <param name="tx"></param>
-        /// <param name="selectQuery"></param>
+        /// <typeparam name="TModel">マップするモデルの型</typeparam>
+        /// <param name="tx">トランザクション</param>
+        /// <param name="selectQuery">SQL</param>
         /// <returns></returns>
         public static List<TModel> SimpleMap<TModel>(SqlTransaction tx, string selectQuery)
         {
             using (var command = new SqlCommand())
             {
-                List<TModel> modelList = new List<TModel>();
-
                 // コマンドの組み立て
                 command.Connection = tx.Connection;
                 command.Transaction = tx;
                 command.CommandText = selectQuery;
 
                 // SQLの実行
+                List<TModel> modelList = new List<TModel>();
+
                 using (SqlDataReader rdr = command.ExecuteReader())
                 {
                     Func<SqlDataReader, TModel> map = FunctionGenerator.GenerateMapFunction<TModel>(selectQuery, rdr);
@@ -66,17 +66,18 @@ namespace Ha2ne2.DBSimple
                         modelList.Add(map(rdr));
                     }
                 }
+
                 return modelList;
             }
         }
 
         /// <summary>
-        /// ORマップをします
+        /// 接続文字列を引数で指定して、ORマップをします。
         /// </summary>
-        /// <typeparam name="TModel"></typeparam>
-        /// <param name="connectionString"></param>
-        /// <param name="selectQuery"></param>
-        /// <param name="preloadDepth">プリロードする深さ</param>
+        /// <typeparam name="TModel">マップするモデルの型</typeparam>
+        /// <param name="connectionString">接続文字列</param>
+        /// <param name="selectQuery">SQL</param>
+        /// <param name="preloadDepth">プロパティをプリロードする深さ</param>
         /// <returns></returns>
         public static List<TModel> ORMap<TModel>(
             string connectionString,
@@ -85,77 +86,47 @@ namespace Ha2ne2.DBSimple
             )
             where TModel : class
         {
-            using (var connection = new SqlConnection(connectionString))
+            using (new MyTimer("ORMap", "TOTAL ELAPSED TIME", 0))
             {
-                // データベースと接続
-                connection.Open();
-                using (var tx = connection.BeginTransaction())
-                {
-                    MethodBase caller = new StackTrace().GetFrame(1).GetMethod();
-                    string callerClassName = caller.ReflectedType.Name;
-                    string callerName = callerClassName + "." + caller.Name;
-
-                    var sw = new Stopwatch();
-                    sw.Start();
-                    var result = ORMapInternal<TModel>(connectionString, tx, selectQuery, typeof(TModel), preloadDepth, 0, null, null, null, null); ;
-                    sw.Stop();
-
-                    string title = "ORMap";
-                    string body = "TOTAL ELAPSED TIME";
-                    int indent = 0;
-
-                    Debug.WriteLine(string.Format(
-                        "{0}[{1,-10}] [{2,-30}] ({3,3}ms) {4}",
-                        new string(' ', indent * 2),
-                        title,
-                        callerName,
-                        sw.ElapsedMilliseconds,
-                        body));
-
-                    return result;
-                }
+                return ORMapInternal<TModel>(
+                    null,
+                    connectionString,
+                    selectQuery,
+                    typeof(TModel),
+                    preloadDepth,
+                    0,
+                    null, null, null, null);
             }
         }
 
         /// <summary>
-        /// ORマップをします
+        /// トランザクションと接続文字列を指定して、ORマップをします
         /// </summary>
         /// <typeparam name="TModel"></typeparam>
-        /// <param name="connectionString"></param>
         /// <param name="tx"></param>
+        /// <param name="connectionString"></param>
         /// <param name="selectQuery"></param>
-        /// <param name="preloadDepth">プリロードする深さ</param>
+        /// <param name="preloadDepth">プロパティをプリロードする深さ</param>
         /// <returns></returns>
         public static List<TModel> ORMap<TModel>(
-            string connectionString,
             SqlTransaction tx,
+            string connectionString,
             string selectQuery,
             int preloadDepth = 1
             )
             where TModel : class
         {
-            MethodBase caller = new StackTrace().GetFrame(1).GetMethod();
-            string callerClassName = caller.ReflectedType.Name;
-            string callerName = callerClassName + "." + caller.Name;
-
-            var sw = new Stopwatch();
-            sw.Start();
-            var result = ORMapInternal<TModel>(connectionString, tx, selectQuery, typeof(TModel), preloadDepth, 0, null, null, null, null); ;
-            sw.Stop();
-
-            string title = "ORMap";
-            string body = "TOTAL ELAPSED TIME";
-            int indent = 0;
-
-            Debug.WriteLine(string.Format(
-                "{0}[{1,-10}] [{2,-30}] ({3,3}ms) {4}",
-                new string(' ', indent * 2),
-                title,
-                callerName,
-                sw.ElapsedMilliseconds,
-                body));
-
-            return result;
+            using(new MyTimer("ORMap", "TOTAL ELAPSED TIME",0))
+            {
+                return ORMapInternal<TModel>(
+                    tx,
+                    connectionString,
+                    selectQuery,
+                    typeof(TModel),
+                    preloadDepth,
+                    0,
+                    null, null, null, null);
+            }
         }
 
         #endregion
@@ -166,19 +137,24 @@ namespace Ha2ne2.DBSimple
         /// 再帰的にORマップします。
         /// </summary>
         /// <typeparam name="TModel">モデルの型</typeparam>
-        /// <param name="tx">SQLトランザクション</param>
-        /// <param name="selectQuery">セレクトクエリー</param>
-        /// <param name="typeofModel">モデルの実際の型</param>
-        /// <param name="preloadDepth">プリロードする深さ</param>
+        /// <param name="tx">SQLトランザクション（nullの場合は、接続文字列を使ってトランザクションを開始します）</param>
+        /// <param name="connectionString">接続文字列</param>
+        /// <param name="selectQuery">セレクトクエリ</param>
+        /// <param name="typeofModel">
+        /// モデルの実際の型です。
+        /// 再帰的にプリロードする際に、TModelにはobjectが指定され、この引数に実際の型が指定され呼び出されます。
+        /// ジェネリクスの型引数（TModel）は実行時に指定出来ない為この引数が必要になります。
+        /// </param>
+        /// <param name="preloadDepth">プロパティをプリロードする深さ</param>
         /// <param name="currentDepth">現在の深さ（出力のインデントに使う）</param>
         /// <param name="loadedBelongsToPropertyName">読み込み済みBelongsToプロパティの名前</param>
         /// <param name="loadedBelongsToObj">読み込み済みBelongsToプロパティのモデルのリスト</param>
         /// <param name="loadedHasManyPropertyName">読み込み済みHasManyプロパティの名前</param>
-        /// <param name="loadedHasManyObj">読み込み済みHasManyプロパティのモデルのディクショナリ(キーはHasManyインスタンスのFK)</param>
+        /// <param name="loadedHasManyObj">読み込み済みHasManyプロパティのモデルのディクショナリ(キーはHasManyインスタンスのForeignKey)</param>
         /// <returns></returns>
         private static List<TModel> ORMapInternal<TModel>(
-            string connectionString,
             SqlTransaction tx,
+            string connectionString,
             string selectQuery,
             Type typeofModel,
             int preloadDepth,
@@ -190,19 +166,20 @@ namespace Ha2ne2.DBSimple
             )
             where TModel : class
         {
+            if (connectionString.IsEmpty())
+                throw new Exception("ConnectionString is Empty");
+
             using (var command = new SqlCommand())
             {
                 List<TModel> modelList = new List<TModel>();
-
                 SqlConnection temporaryConnection = null;
-
                 try
                 {
-                    // トランザクションがnullならトランザクションを自分で開始する
+                    // 引数で指定されたトランザクションがnullなら
+                    // 接続文字列を元にコネクションを開きトランザクションを開始する
                     if (tx == null)
                     {
                         temporaryConnection = new SqlConnection(connectionString);
-                        // データベースと接続
                         temporaryConnection.Open();
                         tx = temporaryConnection.BeginTransaction();
                     }
@@ -215,8 +192,11 @@ namespace Ha2ne2.DBSimple
                     using (new MyTimer(typeofModel.Name, selectQuery, currentDepth)) // 時間測定
                     using (SqlDataReader rdr = command.ExecuteReader()) // SQLの発行
                     {
+                        // DBの1行をTModel1つにマップするメソッドを生成
                         Func<SqlDataReader, TModel> map =
                             FunctionGenerator.GenerateMapFunction<TModel>(selectQuery, rdr, typeofModel);
+
+                        // 全件マップする
                         while (rdr.Read())
                         {
                             modelList.Add(map(rdr));
@@ -227,20 +207,24 @@ namespace Ha2ne2.DBSimple
                     {
                         // nop
                     }
+
+                    // preloadDepthが0より大きい場合、再帰的にプリロードする
                     else if (preloadDepth > 0)
                     {
-                        PreloadHasMany(connectionString, tx, modelList.AsEnumerable(), preloadDepth, currentDepth,
-                                       loadedHasManyPropertyName, loadedHasManyObj);
-                        PreloadBelongsTo(connectionString, tx, modelList.AsEnumerable(), preloadDepth, currentDepth,
-                                         loadedBelongsToPropertyName, loadedBelongsToObj);
+                        PreloadBelongsTo(tx, connectionString, modelList.AsEnumerable(), preloadDepth, currentDepth,
+                            loadedBelongsToPropertyName, loadedBelongsToObj);
+                        PreloadHasMany(tx, connectionString, modelList.AsEnumerable(), preloadDepth, currentDepth,
+                            loadedHasManyPropertyName, loadedHasManyObj);
                     }
+
+                    // preloadDepthが0以下の場合、プリロードはせず、代わりに
+                    // 遅延読み込みする為のメソッドをモデルにセットする。
                     else
                     {
                         SetLazyObjToBelongsToProp(connectionString, modelList.AsEnumerable(),
-                                                  loadedBelongsToPropertyName, loadedBelongsToObj);
-
+                            loadedBelongsToPropertyName, loadedBelongsToObj);
                         SetLazyObjToHasManyProp(connectionString, modelList.AsEnumerable(),
-                                                loadedHasManyPropertyName, loadedHasManyObj);
+                            loadedHasManyPropertyName, loadedHasManyObj);
                     }
 
                     return modelList;
@@ -262,44 +246,46 @@ namespace Ha2ne2.DBSimple
         /// HasMany属性のついたプロパティをPreloadします。
         /// </summary>
         /// <param name="tx">SQLトランザクション</param>
-        /// <param name="models">読み込み対象のモデル</param>
+        /// <param name="modelList">読み込み対象のモデル</param>
         /// <param name="preloadDepth">preloadする深さ</param>
         /// <param name="currentDepth">現在の深さ</param>
         /// <param name="loadedHasManyPropertyName">読み込み済みプロパティの名前</param>
         /// <param name="loadedHasManyObjDict">読み込み済みプロパティのインスタンスのディクショナリ</param>
         private static void PreloadHasMany(
-            string connectionString,
             SqlTransaction tx,
-            IEnumerable<object> models,
+            string connectionString,
+            IEnumerable<object> modelList,
             int preloadDepth,
             int currentDepth,
             string loadedHasManyPropertyName,
-            Dictionary<int,object> loadedHasManyObjDict
+            Dictionary<int, object> loadedHasManyObjDict
             )
         {
             // モデルのリストが空の時はreturn
-            if (models.IsEmpty())
+            if (modelList.IsEmpty())
                 return;
 
-            Type modelType = models.First().GetType();
+            Type modelType = modelList.First().GetType();
             List<HasManyAttribute> hasManyAttrList = PropertyUtil.GetHasManyAttrList(modelType);
 
             // HasMany属性のついたプロパティが無い時はreturn
             if (hasManyAttrList.IsEmpty())
                 return;
 
-            // モデルをプライマリーキーを集めて
+            // モデルのプライマリーキーを集めて
             // SELECT * FROM has_many_table WHERE has_many_FK IN (1,2,3) の 1,2,3の部分を作る
             // TODO プライマリーキープロパティ名がテーブルのプライマリーキー名という前提
             MethodInfo getPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(modelType);
-            string primaryKeyList = models
+            string primaryKeyList = modelList
                 .Select(model => (int)getPrimaryKeyMethod.Invoke(model, null))
-                .Distinct().OrderBy(i => i).JoinToString(", ");
+                .OrderBy(i => i).JoinToString(", ");
 
             foreach (var hasManyAttr in hasManyAttrList)
             {
                 #region 下準備
 
+                // 外部キーの参照先キー名を取得。参照先キー名が未設定の場合はプライマリーキーを参照先キーとする。
+                //（外部キーが必ずしもプライマリーキーを参照しているとは限らない）
                 string referenceKeyPropName = hasManyAttr.InverseBelongsToAttribute.ReferenceKey;
 
                 MethodInfo setHasManyMethod = hasManyAttr.Property.GetSetMethod();
@@ -311,9 +297,9 @@ namespace Ha2ne2.DBSimple
 
                 string referenceKeyList = referenceKeyPropName.IsEmpty() ?
                     primaryKeyList :
-                    models
+                    modelList
                         .Select(model => (int)getReferenceKeyMethod.Invoke(model, null))
-                        .Distinct().OrderBy(i => i).JoinToString(", ");
+                        .OrderBy(i => i).JoinToString(", ");
 
                 Action<object, List<object>> setObjListToHasManyProp = FunctionGenerator.GenerateSetObjListToListPropFunction(
                     setHasManyMethod, modelType, hasManyAttr.Type);
@@ -329,9 +315,9 @@ namespace Ha2ne2.DBSimple
 
                 //// SQLを発行してHasManyのリストを作り、ForeignKeyをキーにしたLookupに変換する
                 ILookup<int, object> hasManyLookup = ORMapInternal<object>(
-                    connectionString, tx, selectQuery, hasManyAttr.Type,
+                    tx, connectionString, selectQuery, hasManyAttr.Type,
                     preloadDepth - 1, currentDepth + 1,
-                    hasManyAttr.InverseBelongsToPropertyName, models,
+                    hasManyAttr.InverseBelongsToPropertyName, modelList,
                     null, null
                     )
                     .ToLookup(
@@ -340,6 +326,15 @@ namespace Ha2ne2.DBSimple
                     {
                         object loaded = null;
 
+                        // Book BelongsTo Author、 Author HasMany Bookという関係があったとする。
+                        // 今手元にbookAというオブジェクトがあり、このメソッドで「bookA.Author.Books」に
+                        // 対するセット処理が走っているとする。
+                        // その際、SELECT * FROM Book WHERE AuthorID = 3 というようなSQLが発行され
+                        // その結果がList<Book>にマッピングされAuthor.Booksにセットされる。
+                        // そこには bookA == book.Author.Books[n] となるようなnが存在する。
+                        // 単純にSQLを発行した結果得られたList<Book>をAuthor.Booksにセットすると
+                        // オブジェクト同一性が保たれない。
+                        // それが保たれるように、Books[n]にはbookAをセットする。
                         if (hasManyAttr.Property.Name == loadedHasManyPropertyName &&
                             loadedHasManyObjDict.TryGetValue((int)getHasManyObjPrimaryKeyMethod.Invoke(hasManyObj,null), out loaded))
                         {
@@ -352,7 +347,7 @@ namespace Ha2ne2.DBSimple
                     });
 
                 //// HasManyプロパティにインスタンスをセットしていく
-                foreach (var model in models)
+                foreach (var model in modelList)
                 {
                     int referenceKey = (int)getReferenceKeyMethod.Invoke(model, null);
                     setObjListToHasManyProp(model, hasManyLookup[referenceKey].ToList());
@@ -371,8 +366,8 @@ namespace Ha2ne2.DBSimple
         /// <param name="loadedBelongsToPropertyName">読み込み済みプロパティの名前</param>
         /// <param name="loadedBelongsToObj">読み込み済みプロパティのモデル</param>
         private static void PreloadBelongsTo(
-            string connectionString,
             SqlTransaction tx,
+            string connectionString,
             IEnumerable<object> models,
             int preloadDepth,
             int currentDepth,
@@ -411,6 +406,8 @@ namespace Ha2ne2.DBSimple
 
                 Dictionary<int, object> belongsToDict = null;
 
+                // authorA.Books[3].Authorという構造があったときに
+                // authorA == authorA.Books[3].Author なので再読込しない
                 if (belongsToAttr.Property.Name == loadedBelongsToPropertyName)
                 {
                     belongsToDict = loadedBelongsToObj.ToDictionary(
@@ -432,7 +429,7 @@ namespace Ha2ne2.DBSimple
 
                     //// SQLを発行してbelongsToのリストを作り、referenceKeyをキーにしたDictionaryに変換する
                     belongsToDict = ORMapInternal<object>(
-                        connectionString, tx, selectQuery, belongsToAttr.Type,
+                        tx, connectionString, selectQuery, belongsToAttr.Type,
                         preloadDepth - 1, currentDepth + 1,
                         null, null,
                         belongsToAttr.InverseHasManyPropertyName, modelDict
@@ -462,8 +459,7 @@ namespace Ha2ne2.DBSimple
 
 
         /// <summary>
-        /// Lazyを仕込む（こいつがまだ未完成）
-        /// 
+        /// HasManyプロパティの遅延読み込み用メソッドを作成しモデルにセットします
         /// </summary>
         /// <param name="tx">SQLトランザクション</param>
         /// <param name="models">読み込み対象のモデル</param>
@@ -492,7 +488,7 @@ namespace Ha2ne2.DBSimple
             MethodInfo getPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(modelType);
             string primaryKeyList = models
                 .Select(model => (int)getPrimaryKeyMethod.Invoke(model, null))
-                .Distinct().OrderBy(i => i).JoinToString(", ");
+                .OrderBy(i => i).JoinToString(", ");
 
             foreach (var hasManyAttr in hasManyAttrList)
             {
@@ -511,7 +507,7 @@ namespace Ha2ne2.DBSimple
                     primaryKeyList :
                     models
                         .Select(model => (int)getReferenceKeyMethod.Invoke(model, null))
-                        .Distinct().OrderBy(i => i).JoinToString(", ");
+                        .OrderBy(i => i).JoinToString(", ");
 
                 Action<object, List<object>> setObjListToHasManyProp = FunctionGenerator.GenerateSetObjListToListPropFunction(
                     setHasManyMethod, modelType, hasManyAttr.Type);
@@ -534,7 +530,7 @@ namespace Ha2ne2.DBSimple
                     var lazyObj = new Lazy<object>(() =>
                     {
                         ILookup<int, object> hasManyLookup = ORMapInternal<object>(
-                            connectionString, null, selectQuery, hasManyAttr.Type,
+                            null, connectionString, selectQuery, hasManyAttr.Type,
                             1, 0,
                             hasManyAttr.InverseBelongsToPropertyName, models,
                             null, null
@@ -557,19 +553,20 @@ namespace Ha2ne2.DBSimple
 
                         int referenceKey = (int)getReferenceKeyMethod.Invoke(model, null);
 
-                        // trick
+                        // 単にhasManyLookup[referenceKey].ToList()を返そうとすると
+                        // List<object>なので返せない。（実態はList<T>だが）
+                        // なので一度セッターでセットし、ゲッターで値を再取得しreturnする。
                         setObjListToHasManyProp(model, hasManyLookup[referenceKey].ToList());
-                        return ((DBSimpleModel)model).Dict[hasManyAttr.Property.Name].Value;
+                        return ((DBSimpleModel)model).LazyLoaderDict[hasManyAttr.Property.Name].Value;
                      });
 
-                    ((DBSimpleModel)model).Dict[hasManyAttr.Property.Name] = lazyObj;
+                    ((DBSimpleModel)model).LazyLoaderDict[hasManyAttr.Property.Name] = lazyObj;
                 }
             }
         }
 
         /// <summary>
-        /// Lazyを仕込む
-        /// 
+        /// BelongsToプロパティの遅延読み込み用メソッドを作成しモデルにセットします
         /// </summary>
         /// <param name="tx">SQLトランザクション</param>
         /// <param name="models">対象のモデル</param>
@@ -653,15 +650,15 @@ namespace Ha2ne2.DBSimple
                         string selectQuery = selectQueryBase + modelFK;
 
                         //// SQLを発行するLazyObjectの作成
-                        var lazyObj = new Lazy<object>(() =>
+                        var lazyLoader = new Lazy<object>(() =>
                             ORMapInternal<object>(
-                                connectionString, null, selectQuery, belongsToAttr.Type,
-                                1,0,
+                                null, connectionString, selectQuery, belongsToAttr.Type,
+                                1, 0,
                                 null, null,
                                 belongsToAttr.InverseHasManyPropertyName, modelDict
                             ).FirstOrDefault());
 
-                        ((DBSimpleModel)model).Dict[belongsToAttr.Property.Name] = lazyObj;
+                        ((DBSimpleModel)model).LazyLoaderDict[belongsToAttr.Property.Name] = lazyLoader;
                     }
                 }
             }
