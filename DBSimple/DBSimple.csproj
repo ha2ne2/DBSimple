@@ -51,6 +51,7 @@
     <Compile Include="ORAttribute\PrimaryKeyAttribute.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Util\FunctionGenerator.cs" />
+    <Compile Include="Util\MyTimer.cs" />
     <Compile Include="Util\PropertyUtil.cs" />
     <Compile Include="Util\StringUtil.cs" />
     <Compile Include="Util\CommonUtil.cs" />

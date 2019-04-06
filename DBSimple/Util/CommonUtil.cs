@@ -10,8 +10,7 @@ using System.Threading.Tasks;
 namespace Ha2ne2.DBSimple.Util
 {
     public static class CommonUtil
-    {
-
+    { 
         /// <summary>
         /// 関数を引数にとり、その関数をメモ化した関数を返す関数。
         /// </summary>
@@ -34,7 +33,6 @@ namespace Ha2ne2.DBSimple.Util
                 return result;
             };
         }
-
 
         public static void MeasureTime(string title, string body, int indent, Action fn)
         {

@@ -17,7 +17,6 @@ namespace Ha2ne2.DBSimple
 {
     public static class DBSimple
     {
-
         #region public method
 
         /// <summary>
@@ -195,49 +194,34 @@ namespace Ha2ne2.DBSimple
             {
                 List<TModel> modelList = new List<TModel>();
 
-                if (tx == null)
+                SqlConnection temporaryConnection = null;
+
+                try
                 {
-                    // トランザクションがnullならトランザクションを開始して再起
-                    using (var connection = new SqlConnection(connectionString))
+                    // トランザクションがnullならトランザクションを自分で開始する
+                    if (tx == null)
                     {
+                        temporaryConnection = new SqlConnection(connectionString);
                         // データベースと接続
-                        connection.Open();
-                        using (tx = connection.BeginTransaction())
-                        {
-                            return ORMapInternal<TModel>(
-                                connectionString,
-                                tx,
-                                selectQuery,
-                                typeofModel,
-                                preloadDepth,
-                                currentDepth,
-                                loadedBelongsToPropertyName,
-                                loadedBelongsToObj,
-                                loadedHasManyPropertyName,
-                                loadedHasManyObj);
-                        }
+                        temporaryConnection.Open();
+                        tx = temporaryConnection.BeginTransaction();
                     }
-                }
-                else
-                {
+
                     // コマンドの組み立て
                     command.Connection = tx.Connection;
                     command.Transaction = tx;
                     command.CommandText = selectQuery;
 
-                    CommonUtil.MeasureTime(typeofModel.Name, selectQuery, currentDepth, () =>
+                    using (new MyTimer(typeofModel.Name, selectQuery, currentDepth)) // 時間測定
+                    using (SqlDataReader rdr = command.ExecuteReader()) // SQLの発行
                     {
-                        // SQLの実行
-                        using (SqlDataReader rdr = command.ExecuteReader())
+                        Func<SqlDataReader, TModel> map =
+                            FunctionGenerator.GenerateMapFunction<TModel>(selectQuery, rdr, typeofModel);
+                        while (rdr.Read())
                         {
-                            Func<SqlDataReader, TModel> map =
-                                FunctionGenerator.GenerateMapFunction<TModel>(selectQuery, rdr, typeofModel);
-                            while (rdr.Read())
-                            {
-                                modelList.Add(map(rdr));
-                            }
+                            modelList.Add(map(rdr));
                         }
-                    });
+                    }
 
                     if (modelList.IsEmpty())
                     {
@@ -260,6 +244,15 @@ namespace Ha2ne2.DBSimple
                     }
 
                     return modelList;
+                }
+                finally
+                {
+                    // 自分でコネクションを開いていた場合は閉じる
+                    if (temporaryConnection != null)
+                    {
+                        temporaryConnection.Dispose();
+                        tx.Dispose();
+                    }
                 }
             }
         }
@@ -524,8 +517,7 @@ namespace Ha2ne2.DBSimple
                     setHasManyMethod, modelType, hasManyAttr.Type);
 
                 #endregion
-
-
+                
                 string selectQueryBase = string.Format(
                     "SELECT * FROM [{0}] WHERE [{1}] = ",
                     hasManyAttr.Type.Name,

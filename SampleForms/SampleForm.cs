@@ -119,18 +119,18 @@ namespace Ha2ne2.DBSimple.Forms
         /// <returns></returns>
         private List<TModel> GetModelListByReflection<TModel>(string connectionString, string selectQuery) where TModel : new()
         {
-            return CommonUtil.MeasureTime("Reflection", string.Empty, 0, () =>
+            using (new MyTimer("Reflection", string.Empty, 0)) // 時間測定
             {
                 DataTable table = Util.GetDataTable(connectionString, selectQuery);
                 List<TModel> modelList = Util.DataTableToModelListByReflection<TModel>(table);
 
                 return modelList;
-            });
+            }
         }
 
         private List<TModel> GetModelListByDBSimple<TModel>(string connectionString, string selectQuery)
         {
-            return CommonUtil.MeasureTime("DBSimple", string.Empty, 0, () =>
+            using (new MyTimer("DBSimple", string.Empty, 0))
             {
                 List<TModel> modelList = new List<TModel>();
 
@@ -145,7 +145,7 @@ namespace Ha2ne2.DBSimple.Forms
                         return DBSimple.SimpleMap<TModel>(tx, selectQuery);
                     }
                 }
-            });
+            }
         }
 
         /// <summary>
@@ -154,7 +154,7 @@ namespace Ha2ne2.DBSimple.Forms
         /// <returns></returns>
         private List<TModel> GetModelListByDapper<TModel>(string connectionString, string selectQuery)
         {
-            return CommonUtil.MeasureTime("Dapper", string.Empty, 0, () =>
+            using (new MyTimer("Dapper", string.Empty, 0))
             {
                 List<TModel> modelList = new List<TModel>();
 
@@ -169,7 +169,7 @@ namespace Ha2ne2.DBSimple.Forms
                         return connection.Query<TModel>(selectQuery, null, tx).ToList();
                     }
                 }
-            });
+            }
         }
 
         /// <summary>
