@@ -41,6 +41,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Car.cs" />
+    <Compile Include="CarTran.cs" />
     <Compile Include="Genre.cs" />
     <Compile Include="Book.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

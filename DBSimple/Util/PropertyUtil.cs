@@ -21,59 +21,29 @@ namespace Ha2ne2.DBSimple.Util
         /// <param name="t"></param>
         /// <param name="foreignKeyPropName"></param>
         /// <returns></returns>
-        public static Tuple<PropertyInfo, BelongsToAttribute>
-            FindBelongsToProperty(Type t, string foreignKeyPropName)
+        public static Tuple<PropertyInfo, BelongsToAttribute> FindBelongsToProperty(
+            Type targetType,
+            Type referenceType,
+            string foreignKey)
         {
-            return t.GetProperties().AsEnumerable()
-                .Select(p =>
-                {
-                    BelongsToAttribute belongsToAttr =
-                        (BelongsToAttribute)p.GetCustomAttribute(typeof(BelongsToAttribute));
-
-                    if (belongsToAttr != null &&
-                        belongsToAttr.ForeignKey == foreignKeyPropName)
-                    {
-                        return new Tuple<PropertyInfo, BelongsToAttribute>(
-                            p,
-                            belongsToAttr);
-                    }
-                    else
-                    {
-                        return null;
-                    }
-                }).FirstOrDefault(tuple => tuple != null);
+            return FindORProperty<BelongsToAttribute>(targetType, referenceType, foreignKey);
         }
 
         /// <summary>
-        /// タイプと外部キーを引数にとり、
-        /// その外部キーを外部キーに持つHasMany属性とそれが紐づくプロパティを返します。
+        /// targetTypeクラス中から、referenceTypeをReferenceTypeに持ち
+        /// foreignKeyをForeignKeyに持つHasMany属性とそれが紐づくプロパティを返します。
         /// 見つからなかった場合はnullを返します。
         /// モデル間の相互参照を実現するために使われます。
         /// </summary>
         /// <param name="t"></param>
-        /// <param name="foreignKeyPropName"></param>
+        /// <param name="foreignKey"></param>
         /// <returns></returns>
-        public static Tuple<PropertyInfo, HasManyAttribute>
-            FindHasManyProperty(Type t, string foreignKeyPropName)
+        public static Tuple<PropertyInfo, HasManyAttribute> FindHasManyProperty(
+            Type targetType,
+            Type referenceType,
+            string foreignKey)
         {
-            return t.GetProperties().AsEnumerable()
-                .Select(p =>
-                {
-                    HasManyAttribute hasManyAttr =
-                        (HasManyAttribute)p.GetCustomAttribute(typeof(HasManyAttribute));
-
-                    if (hasManyAttr != null &&
-                        hasManyAttr.ForeignKey == foreignKeyPropName)
-                    {
-                        return new Tuple<PropertyInfo, HasManyAttribute>(
-                            p,
-                            hasManyAttr);
-                    }
-                    else
-                    {
-                        return null;
-                    }
-                }).FirstOrDefault(tuple => tuple != null);
+            return FindORProperty<HasManyAttribute>(targetType, referenceType, foreignKey);
         }
 
         /// <summary>
@@ -134,23 +104,24 @@ namespace Ha2ne2.DBSimple.Util
 
             foreach (var prop in props)
             {
-                var belongsToAttrs = prop
+                var orAttributeList = prop
                     .GetCustomAttributes(typeof(T), true)
                     .Cast<T>();
 
-                if (belongsToAttrs.IsEmpty())
+                if (orAttributeList.IsEmpty())
                     continue;
 
-                // 1つのプロパティに複数の指定されたAttributeが付いていたときは例外を投げる
-                if (belongsToAttrs.Count() > 1)
+                // 指定されたAttributeが1つのプロパティに複数付いていた場合は例外を投げる
+                if (orAttributeList.Count() > 1)
                     throw new AttributeException($"Property: {type.Name}.{prop.Name} has many {typeof(T).Name}.");
 
-                var belongsToAttr = belongsToAttrs.First();
+                var orAttribute = orAttributeList.First();
 
                 // 属性からプロパティへの参照をセットする
                 //（プロパティから属性は取得できるが、属性からプロパティは取得できないので自分でセットする）
-                belongsToAttr.Property = prop;
-                result.Add(belongsToAttr);
+                orAttribute.Property = prop;
+                orAttribute.MyType = type;
+                result.Add(orAttribute);
             }
 
             return result;
@@ -172,7 +143,7 @@ namespace Ha2ne2.DBSimple.Util
 
             // プライマリーキープロパティが複数定義されていた場合は例外を投げる
             if (props.Count() > 1)
-                throw new Exception(
+                throw new AttributeException(
                     $"{t.Name} Class: has many PrimaryKey Property\r\n" +
                     string.Join(", ", props.Select(p => p.Name)));
 
@@ -183,6 +154,56 @@ namespace Ha2ne2.DBSimple.Util
                 throw new Exception($"{t.Name} Class: PrimaryKey Property doesn't have getter");
 
             return prop;
+        }
+
+        /// <summary>
+        /// targetTypeクラスの中から、referenceTypeをReferenceTypeに持ち
+        /// foreignKeyをForeignKeyに持つHasMany属性とそれが紐づけられたプロパティを返します。
+        /// 見つからなかった場合はnullを返します。
+        /// モデル間の相互参照を実現するために使われます。
+        /// </summary>
+        /// <param name="t"></param>
+        /// <param name="foreignKey"></param>
+        /// <returns></returns>
+        public static Tuple<PropertyInfo, T> FindORProperty<T>(
+            Type targetType,
+            Type referenceType,
+            string foreignKey)
+            where T : ORAttribute
+        {
+            var props = targetType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                .Where(p => {
+                    T attr = (T)p.GetCustomAttribute(typeof(T), true);
+                    return
+                        (attr != null &&
+                         attr.ReferenceType == referenceType &&
+                         attr.ForeignKey == foreignKey);
+                });
+
+            // 指定された条件の属性の設定されたプロパティが見つからなかった場合はnullを返す
+            //（必ずしも設定されていないと行けないわけではないため）
+            if (props.IsEmpty())
+                return null;
+
+            // 指定された条件の属性の設定されたプロパティが複数見つかった場合は例外を投げる
+            if (props.Count() > 1)
+                throw new AttributeException(
+                    string.Format(
+                        "Class: {0} has many [{1} ({2},{3})] .\r\n{4}",
+                        targetType.Name,
+                        typeof(T).Name,
+                        referenceType.Name,
+                        foreignKey,
+                        string.Join(", ", props.Select(p => p.Name))));
+
+            var prop = props.First();
+
+            // 指定された条件の属性の設定されたプロパティにゲッターが設定されていなかった場合は例外を投げる
+            if (!prop.CanRead)
+                throw new Exception($"{targetType.Name} Class: {typeof(T).Name} Property doesn't have getter");
+
+            var orAttribute = (T)prop.GetCustomAttribute(typeof(T), true);
+            return new Tuple<PropertyInfo, T>(prop, orAttribute);
         }
 
         #endregion

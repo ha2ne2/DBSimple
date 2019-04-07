@@ -289,8 +289,8 @@ namespace Ha2ne2.DBSimple
                 string referenceKeyPropName = hasManyAttr.InverseBelongsToAttribute.ReferenceKey;
 
                 MethodInfo setHasManyMethod = hasManyAttr.Property.GetSetMethod();
-                MethodInfo getHasManyObjForeginKeyMethod = hasManyAttr.Type.GetProperty(hasManyAttr.ForeignKey).GetGetMethod();
-                MethodInfo getHasManyObjPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(hasManyAttr.Type);
+                MethodInfo getHasManyObjForeginKeyMethod = hasManyAttr.ReferenceType.GetProperty(hasManyAttr.ForeignKey).GetGetMethod();
+                MethodInfo getHasManyObjPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(hasManyAttr.ReferenceType);
                 MethodInfo getReferenceKeyMethod = referenceKeyPropName.IsEmpty() ?
                     getPrimaryKeyMethod :
                     modelType.GetProperty(referenceKeyPropName).GetGetMethod();
@@ -302,20 +302,20 @@ namespace Ha2ne2.DBSimple
                         .OrderBy(i => i).JoinToString(", ");
 
                 Action<object, List<object>> setObjListToHasManyProp = FunctionGenerator.GenerateSetObjListToListPropFunction(
-                    setHasManyMethod, modelType, hasManyAttr.Type);
+                    setHasManyMethod, modelType, hasManyAttr.ReferenceType);
 
                 #endregion
 
                 //// SQL文を作る
                 string selectQuery = string.Format(
                     "SELECT * FROM [{0}] WHERE [{1}] IN ({2})",
-                    hasManyAttr.Type.Name,  // TODO クラス名がテーブル名という前提
+                    hasManyAttr.ReferenceType.Name,  // TODO クラス名がテーブル名という前提
                     hasManyAttr.ForeignKey, // TODO 外部キープロパティ名が外部キー名という前提
                     referenceKeyList);
 
                 //// SQLを発行してHasManyのリストを作り、ForeignKeyをキーにしたLookupに変換する
                 ILookup<int, object> hasManyLookup = ORMapInternal<object>(
-                    tx, connectionString, selectQuery, hasManyAttr.Type,
+                    tx, connectionString, selectQuery, hasManyAttr.ReferenceType,
                     preloadDepth - 1, currentDepth + 1,
                     hasManyAttr.InverseBelongsToPropertyName, modelList,
                     null, null
@@ -386,7 +386,7 @@ namespace Ha2ne2.DBSimple
             {
                 #region 下準備
 
-                Type belongsToType = belongsToAttr.Type;
+                Type belongsToType = belongsToAttr.ReferenceType;
                 string belongsToObjReferenceKeyPropertyName = StringUtil.EmptyOr(
                     belongsToAttr.ReferenceKey, PropertyUtil.GetPrimaryKeyName(belongsToType));
                 MethodInfo setBelongsToMethod = belongsToAttr.Property.GetSetMethod();
@@ -400,7 +400,7 @@ namespace Ha2ne2.DBSimple
                     .Where(model => (int)getPrimaryKeyMethod.Invoke(model, null) != 0)
                     .ToDictionary(model => (int)getPrimaryKeyMethod.Invoke(model,null));
                 Action<object, object> setBelongsTo = FunctionGenerator.GenerateSetObjToPropFunction(
-                    setBelongsToMethod, modelType, belongsToAttr.Type);
+                    setBelongsToMethod, modelType, belongsToAttr.ReferenceType);
 
                 #endregion
 
@@ -423,13 +423,13 @@ namespace Ha2ne2.DBSimple
 
                     string selectQuery = string.Format(
                         "SELECT * FROM [{0}] WHERE [{1}] IN ({2})",
-                        belongsToAttr.Type.Name,               // TODO BelongsToのクラス名がテーブル名という前提
+                        belongsToAttr.ReferenceType.Name,               // TODO BelongsToのクラス名がテーブル名という前提
                         belongsToObjReferenceKeyPropertyName,  // TODO referenceKeyプロパティ名が参照先列名という前提
                         foreignKeyList);
 
                     //// SQLを発行してbelongsToのリストを作り、referenceKeyをキーにしたDictionaryに変換する
                     belongsToDict = ORMapInternal<object>(
-                        tx, connectionString, selectQuery, belongsToAttr.Type,
+                        tx, connectionString, selectQuery, belongsToAttr.ReferenceType,
                         preloadDepth - 1, currentDepth + 1,
                         null, null,
                         belongsToAttr.InverseHasManyPropertyName, modelDict
@@ -454,9 +454,6 @@ namespace Ha2ne2.DBSimple
                 }
             }
         }
-
-        #endregion
-
 
         /// <summary>
         /// HasManyプロパティの遅延読み込み用メソッドを作成しモデルにセットします
@@ -497,8 +494,8 @@ namespace Ha2ne2.DBSimple
                 string referenceKeyPropName = hasManyAttr.InverseBelongsToAttribute.ReferenceKey;
 
                 MethodInfo setHasManyMethod = hasManyAttr.Property.GetSetMethod();
-                MethodInfo getHasManyObjForeginKeyMethod = hasManyAttr.Type.GetProperty(hasManyAttr.ForeignKey).GetGetMethod();
-                MethodInfo getHasManyObjPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(hasManyAttr.Type);
+                MethodInfo getHasManyObjForeginKeyMethod = hasManyAttr.ReferenceType.GetProperty(hasManyAttr.ForeignKey).GetGetMethod();
+                MethodInfo getHasManyObjPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(hasManyAttr.ReferenceType);
                 MethodInfo getReferenceKeyMethod = referenceKeyPropName.IsEmpty() ?
                     getPrimaryKeyMethod :
                     modelType.GetProperty(referenceKeyPropName).GetGetMethod();
@@ -510,13 +507,13 @@ namespace Ha2ne2.DBSimple
                         .OrderBy(i => i).JoinToString(", ");
 
                 Action<object, List<object>> setObjListToHasManyProp = FunctionGenerator.GenerateSetObjListToListPropFunction(
-                    setHasManyMethod, modelType, hasManyAttr.Type);
+                    setHasManyMethod, modelType, hasManyAttr.ReferenceType);
 
                 #endregion
                 
                 string selectQueryBase = string.Format(
                     "SELECT * FROM [{0}] WHERE [{1}] = ",
-                    hasManyAttr.Type.Name,
+                    hasManyAttr.ReferenceType.Name,
                     hasManyAttr.ForeignKey);
 
                 foreach (var model in models)
@@ -530,7 +527,7 @@ namespace Ha2ne2.DBSimple
                     var lazyObj = new Lazy<object>(() =>
                     {
                         ILookup<int, object> hasManyLookup = ORMapInternal<object>(
-                            null, connectionString, selectQuery, hasManyAttr.Type,
+                            null, connectionString, selectQuery, hasManyAttr.ReferenceType,
                             1, 0,
                             hasManyAttr.InverseBelongsToPropertyName, models,
                             null, null
@@ -596,7 +593,7 @@ namespace Ha2ne2.DBSimple
             {
                 #region 下準備
 
-                Type belongsToType = belongsToAttr.Type;
+                Type belongsToType = belongsToAttr.ReferenceType;
                 string belongsToObjReferenceKeyPropertyName = StringUtil.EmptyOr(
                     belongsToAttr.ReferenceKey, PropertyUtil.GetPrimaryKeyName(belongsToType));
                 MethodInfo setBelongsToMethod = belongsToAttr.Property.GetSetMethod();
@@ -610,7 +607,7 @@ namespace Ha2ne2.DBSimple
                     .Where(model => (int)getPrimaryKeyMethod.Invoke(model, null) != 0)
                     .ToDictionary(model => (int)getPrimaryKeyMethod.Invoke(model, null));
                 Action<object, object> setBelongsTo = FunctionGenerator.GenerateSetObjToPropFunction(
-                    setBelongsToMethod, modelType, belongsToAttr.Type);
+                    setBelongsToMethod, modelType, belongsToAttr.ReferenceType);
 
                 #endregion                
 
@@ -639,7 +636,7 @@ namespace Ha2ne2.DBSimple
                 {
                     string selectQueryBase = string.Format(
                         "SELECT * FROM [{0}] WHERE [{1}] = ",
-                        belongsToAttr.Type.Name,
+                        belongsToAttr.ReferenceType.Name,
                         belongsToObjReferenceKeyPropertyName);
 
                     foreach (var model in models)
@@ -652,7 +649,7 @@ namespace Ha2ne2.DBSimple
                         //// SQLを発行するLazyObjectの作成
                         var lazyLoader = new Lazy<object>(() =>
                             ORMapInternal<object>(
-                                null, connectionString, selectQuery, belongsToAttr.Type,
+                                null, connectionString, selectQuery, belongsToAttr.ReferenceType,
                                 1, 0,
                                 null, null,
                                 belongsToAttr.InverseHasManyPropertyName, modelDict
@@ -663,5 +660,7 @@ namespace Ha2ne2.DBSimple
                 }
             }
         }
+
+        #endregion
     }
 }

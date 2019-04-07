@@ -14,5 +14,12 @@ namespace Ha2ne2.DBSimple.SampleModels
             get { return Get<List<Book>>(); }
             set { Set(value); }
         }
+
+        [HasMany(typeof(CarTran), foreignKey: nameof(CarTran.AuthorID))]
+        public List<CarTran> CatTranList
+        {
+            get { return Get<List<CarTran>>(); }
+            set { Set(value); }
+        }
     }
 }
