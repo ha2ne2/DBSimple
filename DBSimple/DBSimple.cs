@@ -684,8 +684,7 @@ namespace Ha2ne2.DBSimple
                 if (ReferenceKeyPropName.IsEmpty())
                 {
                     ReferenceKeyPropName = PropertyUtil.GetPrimaryKeyName(belongsToAttr.ReferenceType);
-                }
-                
+                }                
 
                 ModelDict = modelList
                     // 左外部結合で補助テーブルを左に置き主キーを半ば意図的にnullにするケースがある。そういうレコードは飛ばす。

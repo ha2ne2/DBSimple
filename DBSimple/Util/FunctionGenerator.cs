@@ -76,19 +76,19 @@ namespace Ha2ne2.DBSimple.Util
                 string getterName;
 
                 if (propType == typeof(int))
-                    getterName = "GetInt32";
+                    getterName = nameof(SqlDataReader.GetInt32);
                 else if (propType == typeof(string))
-                    getterName = "GetString";
+                    getterName = nameof(SqlDataReader.GetString);
                 else if (propType == typeof(decimal))
-                    getterName = "GetDecimal";
+                    getterName = nameof(SqlDataReader.GetDecimal);
                 else if (propType == typeof(DateTime))
-                    getterName = "GetDateTime";
+                    getterName = nameof(SqlDataReader.GetDateTime);
                 else if (propType == typeof(byte))
-                    getterName = "GetByte";
+                    getterName = nameof(SqlDataReader.GetByte);
                 else if (propType == typeof(bool))
-                    getterName = "GetBoolean";
+                    getterName = nameof(SqlDataReader.GetBoolean);
                 else if (propType == typeof(Guid))
-                    getterName = "GetGuid";
+                    getterName = nameof(SqlDataReader.GetGuid);
                 else
                 {
                     needsCast = true;
@@ -97,7 +97,7 @@ namespace Ha2ne2.DBSimple.Util
 
                 // reader.IsDBNull(ord)相当の式木を生成
                 MethodInfo isDBNull = typeof(SqlDataReader)
-                    .GetMethod("IsDBNull", BindingFlags.Public | BindingFlags.Instance);
+                    .GetMethod(nameof(SqlDataReader.IsDBNull), BindingFlags.Public | BindingFlags.Instance);
                 Expression isReaderValueDBNull = Expression.Call(reader, isDBNull, colOrdinal);
 
                 // reader.GetValue(ord)相当の式木を生成
@@ -179,7 +179,7 @@ namespace Ha2ne2.DBSimple.Util
                     {
                         var p = m.GetParameters();
                         return
-                            m.Name == "Count" &&
+                            m.Name == nameof(Enumerable.Count) &&
                             p.Length == 1 &&
                             p[0].ParameterType.IsGenericType &&
                             p[0].ParameterType.GetGenericTypeDefinition() == typeof(IEnumerable<>);
