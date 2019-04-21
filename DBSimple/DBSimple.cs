@@ -20,7 +20,7 @@ namespace Ha2ne2.DBSimple
         #region public method
 
         /// <summary>
-        /// 接続文字列を引数で指定して、シンプルなマッピングを行う
+        /// 接続文字列を引数で指定して、フラットなマッピングを行います。
         /// </summary>
         /// <typeparam name="TModel">マップするモデルの型</typeparam>
         /// <param name="connectionString">接続文字列</param>
@@ -40,7 +40,7 @@ namespace Ha2ne2.DBSimple
         }
 
         /// <summary>
-        /// トランザクションを引数で指定して、シンプルなマッピングを行う
+        /// トランザクションを引数で指定して、フラットなマッピングを行います。
         /// </summary>
         /// <typeparam name="TModel">マップするモデルの型</typeparam>
         /// <param name="tx">トランザクション</param>
@@ -100,7 +100,8 @@ namespace Ha2ne2.DBSimple
         }
 
         /// <summary>
-        /// トランザクションと接続文字列を指定して、ORマップをします
+        /// トランザクションと接続文字列を指定して、ORマップをします。
+        /// 接続文字列は遅延バインドされたプロパティのデータ取得時に使われます。
         /// </summary>
         /// <typeparam name="TModel"></typeparam>
         /// <param name="tx"></param>
@@ -275,43 +276,26 @@ namespace Ha2ne2.DBSimple
             // モデルのプライマリーキーを集めて
             // SELECT * FROM has_many_table WHERE has_many_FK IN (1,2,3) の 1,2,3の部分を作る
             // TODO プライマリーキープロパティ名がテーブルのプライマリーキー名という前提
-            MethodInfo getPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(modelType);
-            string primaryKeyList = modelList
-                .Select(model => (int)getPrimaryKeyMethod.Invoke(model, null))
+            MethodInfo getModelPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(modelType);
+            string modelPrimaryKeyList = modelList
+                .Select(model => (int)getModelPrimaryKeyMethod.Invoke(model, null))
                 .OrderBy(i => i).JoinToString(", ");
 
             foreach (var hasManyAttr in hasManyAttrList)
             {
-                #region 下準備
-
-                // 外部キーの参照先キー名を取得。参照先キー名が未設定の場合はプライマリーキーを参照先キーとする。
-                //（外部キーが必ずしもプライマリーキーを参照しているとは限らない）
-                string referenceKeyPropName = hasManyAttr.InverseBelongsToAttribute.ReferenceKey;
-
-                MethodInfo setHasManyMethod = hasManyAttr.Property.GetSetMethod();
-                MethodInfo getHasManyObjForeginKeyMethod = hasManyAttr.ReferenceType.GetProperty(hasManyAttr.ForeignKey).GetGetMethod();
-                MethodInfo getHasManyObjPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(hasManyAttr.ReferenceType);
-                MethodInfo getReferenceKeyMethod = referenceKeyPropName.IsEmpty() ?
-                    getPrimaryKeyMethod :
-                    modelType.GetProperty(referenceKeyPropName).GetGetMethod();
-
-                string referenceKeyList = referenceKeyPropName.IsEmpty() ?
-                    primaryKeyList :
-                    modelList
-                        .Select(model => (int)getReferenceKeyMethod.Invoke(model, null))
-                        .OrderBy(i => i).JoinToString(", ");
-
-                Action<object, List<object>> setObjListToHasManyProp = FunctionGenerator.GenerateSetObjListToListPropFunction(
-                    setHasManyMethod, modelType, hasManyAttr.ReferenceType);
-
-                #endregion
+                var context = new SetHasManyContext(
+                    hasManyAttr,
+                    modelType,
+                    modelList,
+                    modelPrimaryKeyList,
+                    getModelPrimaryKeyMethod);
 
                 //// SQL文を作る
                 string selectQuery = string.Format(
                     "SELECT * FROM [{0}] WHERE [{1}] IN ({2})",
-                    hasManyAttr.ReferenceType.Name,  // TODO クラス名がテーブル名という前提
-                    hasManyAttr.ForeignKey, // TODO 外部キープロパティ名が外部キー名という前提
-                    referenceKeyList);
+                    hasManyAttr.ReferenceType.Name, // TODO クラス名がテーブル名という前提
+                    hasManyAttr.ForeignKey,         // TODO 外部キープロパティ名が外部キー名という前提
+                    context.ReferenceKeyList);
 
                 //// SQLを発行してHasManyのリストを作り、ForeignKeyをキーにしたLookupに変換する
                 ILookup<int, object> hasManyLookup = ORMapInternal<object>(
@@ -321,7 +305,7 @@ namespace Ha2ne2.DBSimple
                     null, null
                     )
                     .ToLookup(
-                    hasManyObj =>　(int)getHasManyObjForeginKeyMethod.Invoke(hasManyObj, null),
+                    hasManyObj =>　(int)context.GetForeginKeyMethod.Invoke(hasManyObj, null),
                     hasManyObj =>
                     {
                         object loaded = null;
@@ -336,7 +320,7 @@ namespace Ha2ne2.DBSimple
                         // オブジェクト同一性が保たれない。
                         // それが保たれるように、Books[n]にはbookAをセットする。
                         if (hasManyAttr.Property.Name == loadedHasManyPropertyName &&
-                            loadedHasManyObjDict.TryGetValue((int)getHasManyObjPrimaryKeyMethod.Invoke(hasManyObj,null), out loaded))
+                            loadedHasManyObjDict.TryGetValue((int)context.GetPrimaryKeyMethod.Invoke(hasManyObj,null), out loaded))
                         {
                             return loaded;
                         }
@@ -349,8 +333,8 @@ namespace Ha2ne2.DBSimple
                 //// HasManyプロパティにインスタンスをセットしていく
                 foreach (var model in modelList)
                 {
-                    int referenceKey = (int)getReferenceKeyMethod.Invoke(model, null);
-                    setObjListToHasManyProp(model, hasManyLookup[referenceKey].ToList());
+                    int referenceKey = (int)context.GetReferenceKeyMethod.Invoke(model, null);
+                    context.SetObjListToHasManyProp(model, hasManyLookup[referenceKey].ToList());
                 }
             }
         }
@@ -360,7 +344,7 @@ namespace Ha2ne2.DBSimple
         /// BelongsTo属性のついたプロパティをPreloadします。
         /// </summary>
         /// <param name="tx">SQLトランザクション</param>
-        /// <param name="models">対象のモデル</param>
+        /// <param name="modelList">対象のモデル</param>
         /// <param name="preloadDepth">preloadする深さ</param>
         /// <param name="currentDepth">現在の深さ</param>
         /// <param name="loadedBelongsToPropertyName">読み込み済みプロパティの名前</param>
@@ -368,7 +352,7 @@ namespace Ha2ne2.DBSimple
         private static void PreloadBelongsTo(
             SqlTransaction tx,
             string connectionString,
-            IEnumerable<object> models,
+            IEnumerable<object> modelList,
             int preloadDepth,
             int currentDepth,
             string loadedBelongsToPropertyName,
@@ -376,33 +360,18 @@ namespace Ha2ne2.DBSimple
             )
         {
             // モデルのリストが空の時はreturn
-            if (models.IsEmpty())
+            if (modelList.IsEmpty())
                 return;
 
-            Type modelType = models.First().GetType();
+            Type modelType = modelList.First().GetType();
             List<BelongsToAttribute> belongsToAttrList = PropertyUtil.GetBelongsToAttrList(modelType);
 
             foreach (var belongsToAttr in belongsToAttrList)
             {
-                #region 下準備
-
-                Type belongsToType = belongsToAttr.ReferenceType;
-                string belongsToObjReferenceKeyPropertyName = StringUtil.EmptyOr(
-                    belongsToAttr.ReferenceKey, PropertyUtil.GetPrimaryKeyName(belongsToType));
-                MethodInfo setBelongsToMethod = belongsToAttr.Property.GetSetMethod();
-                MethodInfo getForeignKeyMethod = modelType.GetProperty(belongsToAttr.ForeignKey).GetGetMethod();
-                MethodInfo getPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(modelType);
-                MethodInfo getBelongsToObjReferenceKeyMethod = belongsToType
-                    .GetProperty(belongsToObjReferenceKeyPropertyName)
-                    .GetGetMethod();
-                Dictionary<int, object> modelDict = models
-                    // 左外部結合で補助テーブルを左に置き主キーを半ば意図的にnullにするケースがある。そういうレコードは飛ばす。
-                    .Where(model => (int)getPrimaryKeyMethod.Invoke(model, null) != 0)
-                    .ToDictionary(model => (int)getPrimaryKeyMethod.Invoke(model,null));
-                Action<object, object> setBelongsTo = FunctionGenerator.GenerateSetObjToPropFunction(
-                    setBelongsToMethod, modelType, belongsToAttr.ReferenceType);
-
-                #endregion
+                var context = new SetBelongsToContext(
+                    belongsToAttr,
+                    modelType,
+                    modelList);
 
                 Dictionary<int, object> belongsToDict = null;
 
@@ -411,20 +380,20 @@ namespace Ha2ne2.DBSimple
                 if (belongsToAttr.Property.Name == loadedBelongsToPropertyName)
                 {
                     belongsToDict = loadedBelongsToObj.ToDictionary(
-                        belongsToObj => (int)getBelongsToObjReferenceKeyMethod.Invoke(belongsToObj, null));
+                        belongsToObj => (int)context.GetReferenceKeyMethod.Invoke(belongsToObj, null));
                 }
                 else
                 {
                     //// SQL文を作る
                     // SELECT * FROM belongsToTable WHERE referenceKey IN (1,2,3) の 1,2,3の部分を作る
-                    string foreignKeyList = models
-                        .Select(model => (int)getForeignKeyMethod.Invoke(model, null))
+                    string foreignKeyList = modelList
+                        .Select(model => (int)context.GetForeignKeyMethod.Invoke(model, null))
                         .Distinct().OrderBy(i => i).JoinToString(", ");
 
                     string selectQuery = string.Format(
                         "SELECT * FROM [{0}] WHERE [{1}] IN ({2})",
-                        belongsToAttr.ReferenceType.Name,               // TODO BelongsToのクラス名がテーブル名という前提
-                        belongsToObjReferenceKeyPropertyName,  // TODO referenceKeyプロパティ名が参照先列名という前提
+                        belongsToAttr.ReferenceType.Name, // TODO BelongsToのクラス名がテーブル名という前提
+                        context.ReferenceKeyPropName,     // TODO referenceKeyプロパティ名が参照先列名という前提
                         foreignKeyList);
 
                     //// SQLを発行してbelongsToのリストを作り、referenceKeyをキーにしたDictionaryに変換する
@@ -432,24 +401,24 @@ namespace Ha2ne2.DBSimple
                         tx, connectionString, selectQuery, belongsToAttr.ReferenceType,
                         preloadDepth - 1, currentDepth + 1,
                         null, null,
-                        belongsToAttr.InverseHasManyPropertyName, modelDict
+                        belongsToAttr.InverseHasManyPropertyName, context.ModelDict
                         )
-                        .ToDictionary(belongsToObj => (int)getBelongsToObjReferenceKeyMethod.Invoke(belongsToObj, null));
+                        .ToDictionary(belongsToObj => (int)context.GetReferenceKeyMethod.Invoke(belongsToObj, null));
                 }
 
                 //// BelongsToプロパティにインスタンスをセットしていく
-                foreach (var model in models)
+                foreach (var model in modelList)
                 {
-                    int foreignKey = (int)getForeignKeyMethod.Invoke(model, null);
+                    int foreignKey = (int)context.GetForeignKeyMethod.Invoke(model, null);
 
                     // ここ落としたほうがいいか？（外部キーに対応するbelongsToレコードがない場合）
                     if (belongsToDict.ContainsKey(foreignKey))
                     {
-                        setBelongsTo(model, belongsToDict[foreignKey]);
+                        context.SetBelongsTo(model, belongsToDict[foreignKey]);
                     }
                     else
                     {
-                        Debug.WriteLine($"foreign key value {foreignKey} was not found on {modelType}.{belongsToObjReferenceKeyPropertyName}");
+                        Debug.WriteLine($"foreign key value {foreignKey} was not found on {modelType}.{context.ReferenceKeyPropName}");
                     }
                 }
             }
@@ -459,21 +428,21 @@ namespace Ha2ne2.DBSimple
         /// HasManyプロパティの遅延読み込み用メソッドを作成しモデルにセットします
         /// </summary>
         /// <param name="tx">SQLトランザクション</param>
-        /// <param name="models">読み込み対象のモデル</param>
+        /// <param name="modelList">読み込み対象のモデル</param>
         /// <param name="loadedHasManyPropertyName">読み込み済みプロパティの名前</param>
         /// <param name="loadedHasManyObj">読み込み済みプロパティのモデル</param>
         private static void SetLazyObjToHasManyProp(
             string connectionString,
-            IEnumerable<object> models,
+            IEnumerable<object> modelList,
             string loadedHasManyPropertyName,
             Dictionary<int, object> loadedHasManyObjDict
             )
         {
             // モデルのリストが空の時はreturn
-            if (models.IsEmpty())
+            if (modelList.IsEmpty())
                 return;
 
-            Type modelType = models.First().GetType();
+            Type modelType = modelList.First().GetType();
             List<HasManyAttribute> hasManyAttrList = PropertyUtil.GetHasManyAttrList(modelType);
 
             // HasMany属性のついたプロパティが無い時はreturn
@@ -482,45 +451,30 @@ namespace Ha2ne2.DBSimple
 
             // モデルをプライマリーキーを集めて
             // SELECT * FROM has_many_table WHERE has_many_FK IN (1,2,3) の 1,2,3の部分を作る
-            MethodInfo getPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(modelType);
-            string primaryKeyList = models
-                .Select(model => (int)getPrimaryKeyMethod.Invoke(model, null))
+            MethodInfo getModelPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(modelType);
+            string modelPrimaryKeyList = modelList
+                .Select(model => (int)getModelPrimaryKeyMethod.Invoke(model, null))
                 .OrderBy(i => i).JoinToString(", ");
 
             foreach (var hasManyAttr in hasManyAttrList)
             {
-                #region 下準備
+                var context = new SetHasManyContext(
+                    hasManyAttr,
+                    modelType,
+                    modelList,
+                    modelPrimaryKeyList,
+                    getModelPrimaryKeyMethod);
 
-                string referenceKeyPropName = hasManyAttr.InverseBelongsToAttribute.ReferenceKey;
-
-                MethodInfo setHasManyMethod = hasManyAttr.Property.GetSetMethod();
-                MethodInfo getHasManyObjForeginKeyMethod = hasManyAttr.ReferenceType.GetProperty(hasManyAttr.ForeignKey).GetGetMethod();
-                MethodInfo getHasManyObjPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(hasManyAttr.ReferenceType);
-                MethodInfo getReferenceKeyMethod = referenceKeyPropName.IsEmpty() ?
-                    getPrimaryKeyMethod :
-                    modelType.GetProperty(referenceKeyPropName).GetGetMethod();
-
-                string referenceKeyList = referenceKeyPropName.IsEmpty() ?
-                    primaryKeyList :
-                    models
-                        .Select(model => (int)getReferenceKeyMethod.Invoke(model, null))
-                        .OrderBy(i => i).JoinToString(", ");
-
-                Action<object, List<object>> setObjListToHasManyProp = FunctionGenerator.GenerateSetObjListToListPropFunction(
-                    setHasManyMethod, modelType, hasManyAttr.ReferenceType);
-
-                #endregion
-                
                 string selectQueryBase = string.Format(
                     "SELECT * FROM [{0}] WHERE [{1}] = ",
                     hasManyAttr.ReferenceType.Name,
                     hasManyAttr.ForeignKey);
 
-                foreach (var model in models)
+                foreach (var model in modelList)
                 {
                     //// SQL文を作る
                     // SELECT * FROM hasManyTable WHERE foreignKey = referenceKey
-                    int modelReferenceKey = (int)getReferenceKeyMethod.Invoke(model, null);
+                    int modelReferenceKey = (int)context.GetReferenceKeyMethod.Invoke(model, null);
                     string selectQuery = selectQueryBase + modelReferenceKey;
 
                     //// SQLを発行するLazyObjectの作成
@@ -529,16 +483,16 @@ namespace Ha2ne2.DBSimple
                         ILookup<int, object> hasManyLookup = ORMapInternal<object>(
                             null, connectionString, selectQuery, hasManyAttr.ReferenceType,
                             1, 0,
-                            hasManyAttr.InverseBelongsToPropertyName, models,
+                            hasManyAttr.InverseBelongsToPropertyName, modelList,
                             null, null
                             ).ToLookup(
-                            hasManyObj => (int)getHasManyObjForeginKeyMethod.Invoke(hasManyObj, null),
+                            hasManyObj => (int)context.GetForeginKeyMethod.Invoke(hasManyObj, null),
                             hasManyObj =>
                             {
                                 object loaded = null;
 
                                 if (hasManyAttr.Property.Name == loadedHasManyPropertyName &&
-                                    loadedHasManyObjDict.TryGetValue((int)getHasManyObjPrimaryKeyMethod.Invoke(hasManyObj, null), out loaded))
+                                    loadedHasManyObjDict.TryGetValue((int)context.GetPrimaryKeyMethod.Invoke(hasManyObj, null), out loaded))
                                 {
                                     return loaded;
                                 }
@@ -548,12 +502,12 @@ namespace Ha2ne2.DBSimple
                                 }
                             });
 
-                        int referenceKey = (int)getReferenceKeyMethod.Invoke(model, null);
+                        int referenceKey = (int)context.GetReferenceKeyMethod.Invoke(model, null);
 
                         // 単にhasManyLookup[referenceKey].ToList()を返そうとすると
                         // List<object>なので返せない。（実態はList<T>だが）
                         // なので一度セッターでセットし、ゲッターで値を再取得しreturnする。
-                        setObjListToHasManyProp(model, hasManyLookup[referenceKey].ToList());
+                        context.SetObjListToHasManyProp(model, hasManyLookup[referenceKey].ToList());
                         return ((DBSimpleModel)model).LazyLoaderDict[hasManyAttr.Property.Name].Value;
                      });
 
@@ -566,23 +520,23 @@ namespace Ha2ne2.DBSimple
         /// BelongsToプロパティの遅延読み込み用メソッドを作成しモデルにセットします
         /// </summary>
         /// <param name="tx">SQLトランザクション</param>
-        /// <param name="models">対象のモデル</param>
+        /// <param name="modelList">対象のモデル</param>
         /// <param name="preloadDepth">preloadする深さ</param>
         /// <param name="currentDepth">現在の深さ</param>
         /// <param name="loadedBelongsToPropertyName">読み込み済みプロパティの名前</param>
         /// <param name="loadedBelongsToObj">読み込み済みプロパティのモデル</param>
         private static void SetLazyObjToBelongsToProp(
             string connectionString,
-            IEnumerable<object> models,
+            IEnumerable<object> modelList,
             string loadedBelongsToPropertyName,
             IEnumerable<object> loadedBelongsToObj
             )
         {
             // モデルのリストが空の時はreturn
-            if (models.IsEmpty())
+            if (modelList.IsEmpty())
                 return;
 
-            Type modelType = models.First().GetType();
+            Type modelType = modelList.First().GetType();
             List<BelongsToAttribute> belongsToAttrList = PropertyUtil.GetBelongsToAttrList(modelType);
 
             // BelongsTo属性のついたプロパティが無い時はreturn
@@ -591,44 +545,29 @@ namespace Ha2ne2.DBSimple
 
             foreach (var belongsToAttr in belongsToAttrList)
             {
-                #region 下準備
-
-                Type belongsToType = belongsToAttr.ReferenceType;
-                string belongsToObjReferenceKeyPropertyName = StringUtil.EmptyOr(
-                    belongsToAttr.ReferenceKey, PropertyUtil.GetPrimaryKeyName(belongsToType));
-                MethodInfo setBelongsToMethod = belongsToAttr.Property.GetSetMethod();
-                MethodInfo getForeignKeyMethod = modelType.GetProperty(belongsToAttr.ForeignKey).GetGetMethod();
-                MethodInfo getPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(modelType);
-                MethodInfo getReferenceKeyMethod = belongsToType
-                    .GetProperty(belongsToObjReferenceKeyPropertyName)
-                    .GetGetMethod();
-                Dictionary<int, object> modelDict = models
-                    // 左外部結合で補助テーブルを左に置き主キーを半ば意図的にnullにするケースがある。そういうレコードは飛ばす。
-                    .Where(model => (int)getPrimaryKeyMethod.Invoke(model, null) != 0)
-                    .ToDictionary(model => (int)getPrimaryKeyMethod.Invoke(model, null));
-                Action<object, object> setBelongsTo = FunctionGenerator.GenerateSetObjToPropFunction(
-                    setBelongsToMethod, modelType, belongsToAttr.ReferenceType);
-
-                #endregion                
+                var context = new SetBelongsToContext(
+                    belongsToAttr,
+                    modelType,
+                    modelList);
 
                 if (belongsToAttr.Property.Name == loadedBelongsToPropertyName)
                 {
                     Dictionary<int, object> loadedBelongsToDict = loadedBelongsToObj.ToDictionary(
-                        belongsToObj => (int)getReferenceKeyMethod.Invoke(belongsToObj, null));
+                        belongsToObj => (int)context.GetReferenceKeyMethod.Invoke(belongsToObj, null));
 
                     //// BelongsToプロパティに読み込み済みインスタンスをセットしていく
-                    foreach (var model in models)
+                    foreach (var model in modelList)
                     {
-                        int foreignKey = (int)getForeignKeyMethod.Invoke(model, null);
+                        int foreignKey = (int)context.GetForeignKeyMethod.Invoke(model, null);
 
                         // ここ落としたほうがいいか？（外部キーに対応するbelongsToレコードがない場合）
                         if (loadedBelongsToDict.ContainsKey(foreignKey))
                         {
-                            setBelongsTo(model, loadedBelongsToDict[foreignKey]);
+                            context.SetBelongsTo(model, loadedBelongsToDict[foreignKey]);
                         }
                         else
                         {
-                            Debug.WriteLine($"foreign key value {foreignKey} was not found on {modelType}.{belongsToObjReferenceKeyPropertyName}");
+                            Debug.WriteLine($"foreign key value {foreignKey} was not found on {modelType}.{context.ReferenceKeyPropName}");
                         }
                     }
                 }
@@ -637,13 +576,13 @@ namespace Ha2ne2.DBSimple
                     string selectQueryBase = string.Format(
                         "SELECT * FROM [{0}] WHERE [{1}] = ",
                         belongsToAttr.ReferenceType.Name,
-                        belongsToObjReferenceKeyPropertyName);
+                        context.ReferenceKeyPropName);
 
-                    foreach (var model in models)
+                    foreach (var model in modelList)
                     {
                         //// SQL文を作る
                         // SELECT * FROM belongsToTable WHERE referenceKey = belongsToObjFK
-                        int modelFK = (int)getForeignKeyMethod.Invoke(model, null);
+                        int modelFK = (int)context.GetForeignKeyMethod.Invoke(model, null);
                         string selectQuery = selectQueryBase + modelFK;
 
                         //// SQLを発行するLazyObjectの作成
@@ -652,12 +591,109 @@ namespace Ha2ne2.DBSimple
                                 null, connectionString, selectQuery, belongsToAttr.ReferenceType,
                                 1, 0,
                                 null, null,
-                                belongsToAttr.InverseHasManyPropertyName, modelDict
+                                belongsToAttr.InverseHasManyPropertyName, context.ModelDict
                             ).FirstOrDefault());
 
                         ((DBSimpleModel)model).LazyLoaderDict[belongsToAttr.Property.Name] = lazyLoader;
                     }
                 }
+            }
+        }
+
+        #endregion
+
+        #region private class
+
+        private class SetHasManyContext
+        {
+            public string ReferenceKeyPropName { get; set; }
+            public Type HasManyType { get; set; }
+            public MethodInfo SetHasManyMethod { get; set; }
+            public MethodInfo GetForeginKeyMethod { get; set; }
+            public MethodInfo GetPrimaryKeyMethod { get; set; }
+            public MethodInfo GetReferenceKeyMethod { get; set; }
+            public string ReferenceKeyList { get; set; }
+            public Action<object, List<object>> SetObjListToHasManyProp { get; set; }
+
+            public SetHasManyContext(
+                HasManyAttribute hasManyAttr,
+                Type modelType,
+                IEnumerable<object> modelList,
+                string modelPrimaryKeyList,
+                MethodInfo getModelPrimaryKeyMethod)
+            {
+                // 外部キーの参照先キー名を取得。参照先キー名が未設定の場合はプライマリーキーを参照先キーとする。
+                //（外部キーが必ずしもプライマリーキーを参照しているとは限らない）
+                ReferenceKeyPropName = StringUtil.EmptyOr(
+                    hasManyAttr.ReferenceKey,
+                    hasManyAttr.InverseBelongsToAttribute.ReferenceKey);
+
+                HasManyType = hasManyAttr.ReferenceType;
+                SetHasManyMethod = hasManyAttr.Property.GetSetMethod();
+                GetForeginKeyMethod = HasManyType.GetProperty(hasManyAttr.ForeignKey).GetGetMethod();
+                GetPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(HasManyType);
+                GetReferenceKeyMethod = ReferenceKeyPropName.IsEmpty() ?
+                    getModelPrimaryKeyMethod :
+                    modelType.GetProperty(ReferenceKeyPropName).GetGetMethod();
+
+                ReferenceKeyList = ReferenceKeyPropName.IsEmpty() ?
+                    modelPrimaryKeyList :
+                    modelList
+                        .Select(model => (int)GetReferenceKeyMethod.Invoke(model, null))
+                        .OrderBy(i => i)
+                        .JoinToString(", ");
+
+                if (ReferenceKeyPropName.IsEmpty())
+                {
+                    ReferenceKeyPropName = PropertyUtil.GetPrimaryKeyName(modelType);
+                }
+
+                SetObjListToHasManyProp = FunctionGenerator.GenerateSetObjListToListPropFunction(
+                    SetHasManyMethod, modelType, hasManyAttr.ReferenceType);
+            }
+        }
+
+        private class SetBelongsToContext
+        {
+            public string ReferenceKeyPropName { get; set; }
+            public Type BelongsToType { get; set; }
+            public MethodInfo SetBelongsToMethod { get; set; }
+            public MethodInfo GetForeignKeyMethod { get; set; }
+            public MethodInfo GetPrimaryKeyMethod { get; set; }
+            public MethodInfo GetReferenceKeyMethod { get; set; }
+            public Dictionary<int, object> ModelDict { get; set; }
+            public Action<object, object> SetBelongsTo { get; set; }
+
+            public SetBelongsToContext(
+                BelongsToAttribute belongsToAttr,
+                Type modelType,
+                IEnumerable<object> modelList)
+            {
+                ReferenceKeyPropName = StringUtil.EmptyOr(
+                   belongsToAttr.ReferenceKey,
+                   belongsToAttr.InverseHasManyAttribute.ReferenceKey);
+
+                BelongsToType = belongsToAttr.ReferenceType;
+                SetBelongsToMethod = belongsToAttr.Property.GetSetMethod();
+                GetForeignKeyMethod = modelType.GetProperty(belongsToAttr.ForeignKey).GetGetMethod();
+                GetPrimaryKeyMethod = PropertyUtil.GetGetPrimaryKeyMethod(modelType);
+                GetReferenceKeyMethod = ReferenceKeyPropName.IsEmpty() ?
+                    PropertyUtil.GetGetPrimaryKeyMethod(BelongsToType) :
+                    BelongsToType.GetProperty(ReferenceKeyPropName).GetGetMethod();
+
+                if (ReferenceKeyPropName.IsEmpty())
+                {
+                    ReferenceKeyPropName = PropertyUtil.GetPrimaryKeyName(belongsToAttr.ReferenceType);
+                }
+                
+
+                ModelDict = modelList
+                    // 左外部結合で補助テーブルを左に置き主キーを半ば意図的にnullにするケースがある。そういうレコードは飛ばす。
+                    .Where(model => (int)GetPrimaryKeyMethod.Invoke(model, null) != 0)
+                    .ToDictionary(model => (int)GetPrimaryKeyMethod.Invoke(model, null));
+
+                SetBelongsTo = FunctionGenerator.GenerateSetObjToPropFunction(
+                    SetBelongsToMethod, modelType, belongsToAttr.ReferenceType);
             }
         }
 

@@ -7,6 +7,7 @@ namespace Ha2ne2.DBSimple
     public class BelongsToAttribute : ORAttribute
     {
         private Lazy<Tuple<PropertyInfo, HasManyAttribute>> InversePropAndAttr;
+
         public string InverseHasManyPropertyName { get { return InversePropAndAttr.Value?.Item1.Name; } }
         public PropertyInfo InverseHasManyProperty { get { return InversePropAndAttr.Value?.Item1; } }
         public HasManyAttribute InverseHasManyAttribute { get { return InversePropAndAttr.Value?.Item2; } }

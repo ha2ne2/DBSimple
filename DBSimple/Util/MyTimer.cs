@@ -24,7 +24,7 @@ namespace Ha2ne2.DBSimple.Util
         /// <param name="title">処理の名前</param>
         /// <param name="body">処理の詳細</param>
         /// <param name="indent">インデントのレベル</param>
-        public MyTimer(string title, string body, int indent)
+        public MyTimer(string title, string body = "", int indent = 0)
         {
             Title = title;
             Body = body;
