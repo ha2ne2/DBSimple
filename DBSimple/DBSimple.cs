@@ -622,11 +622,11 @@ namespace Ha2ne2.DBSimple
                 string modelPrimaryKeyList,
                 MethodInfo getModelPrimaryKeyMethod)
             {
-                // 外部キーの参照先キー名を取得。参照先キー名が未設定の場合はプライマリーキーを参照先キーとする。
-                //（外部キーが必ずしもプライマリーキーを参照しているとは限らない）
+                // 外部キーの参照先キー名を取得。未設定の場合、Inverse側で設定された参照先キー名を取得。
+                // それも未設定の場合はプライマリーキーを参照先キーとする。
                 ReferenceKeyPropName = StringUtil.EmptyOr(
                     hasManyAttr.ReferenceKey,
-                    hasManyAttr.InverseBelongsToAttribute.ReferenceKey);
+                    hasManyAttr.InverseBelongsToAttribute?.ReferenceKey);
 
                 HasManyType = hasManyAttr.ReferenceType;
                 SetHasManyMethod = hasManyAttr.Property.GetSetMethod();
@@ -669,9 +669,11 @@ namespace Ha2ne2.DBSimple
                 Type modelType,
                 IEnumerable<object> modelList)
             {
+                // 外部キーの参照先キー名を取得。未設定の場合、Inverse側で設定された参照先キー名を取得。
+                // それも未設定の場合はプライマリーキーを参照先キーとする。
                 ReferenceKeyPropName = StringUtil.EmptyOr(
                    belongsToAttr.ReferenceKey,
-                   belongsToAttr.InverseHasManyAttribute.ReferenceKey);
+                   belongsToAttr.InverseHasManyAttribute?.ReferenceKey);
 
                 BelongsToType = belongsToAttr.ReferenceType;
                 SetBelongsToMethod = belongsToAttr.Property.GetSetMethod();
