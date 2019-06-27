@@ -92,7 +92,7 @@ namespace Ha2ne2.DBSimple.Util
                 else
                 {
                     needsCast = true;
-                    getterName = "GetValue";
+                    getterName = nameof(SqlDataReader.GetValue);
                 }
 
                 // reader.IsDBNull(ord)相当の式木を生成
@@ -105,18 +105,48 @@ namespace Ha2ne2.DBSimple.Util
                     .GetMethod(getterName, BindingFlags.Public | BindingFlags.Instance);
                 Expression getReaderValue = Expression.Call(reader, getValue, colOrdinal);
 
-                // bodyに追加
-                body.Add(Expression.Call(
-                    model,
-                    setProp,
-                    Expression.Condition(
-                        isReaderValueDBNull,
-                        Expression.Default(propType),
-                        (needsCast) ?
-                            Expression.ConvertChecked(getReaderValue, propType) :
-                            getReaderValue)));
-            }
+                // reader.GetFieldType(ord).ToString()相当の式木を生成（キャストエラー時の例外メッセージに使います）
+                MethodInfo getFieldType = typeof(SqlDataReader)
+                    .GetMethod(nameof(SqlDataReader.GetFieldType), BindingFlags.Public | BindingFlags.Instance);
+                MethodInfo toString = typeof(object)
+                    .GetMethod(nameof(object.ToString), BindingFlags.Public | BindingFlags.Instance);
+                Expression getReaderFieldType = Expression.Call(Expression.Call(reader, getFieldType, colOrdinal), toString);
 
+                // 下記相当の式木を生成し、bodyに追加
+                //try
+                //{
+                //    model.Prop = (readerValue == DBNull.Value) ?
+                //        default(typeof(prop)) : 
+                //        (typeof(prop))readerValue;
+                //}
+                //catch(InvalidCastException)
+                //{
+                //    throw new InvalidCastException("Cast faild\nModel: \nProperty Name: \nProperty Type: \nDB Type: ");
+                //}
+                body.Add(
+                    Expression.TryCatch(
+                        Expression.Call(
+                            model,
+                            setProp,
+                            Expression.Condition(
+                                isReaderValueDBNull,
+                                Expression.Default(propType),
+                                (needsCast) ?
+                                    Expression.ConvertChecked(getReaderValue, propType) :
+                                    getReaderValue)),
+                        Expression.Catch(
+                            typeof(InvalidCastException),
+                            Expression.Throw(
+                                Expression.New(
+                                    typeof(InvalidCastException).GetConstructor(new[] { typeof(string) }),
+                                    Expression.Add(
+                                        Expression.Constant(string.Format("Cast faild\r\nModel: {0}\r\nProperty Name: {1}\r\nProperty Type: {2}\r\nDB Type: ",
+                                            actualType.ToString(),
+                                            propInfo.Name,
+                                            propInfo.PropertyType.ToString())),
+                                         getReaderFieldType,
+                                         typeof(string).GetMethod(nameof(string.Concat), new[] { typeof(string), typeof(string) })))))));
+            }
             body.Add(model);
 
             // コンパイル
